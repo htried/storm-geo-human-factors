@@ -253,3 +253,8 @@ yarn-error.log*
 app/data/corpus.json
 corpus_sources/
 /.env.local
+
+# Playwright + test fixture symlinks (local-only, not shipped)
+/test-results/
+/playwright-report/
+/test_data
