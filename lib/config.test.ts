@@ -20,7 +20,6 @@ const state: {
   callCount: 0,
 };
 
-/* eslint-disable @typescript-eslint/no-unused-vars */
 vi.mock("./supabase", () => ({
   getSupabase: () => ({
     from: (_table: string) => ({
@@ -35,7 +34,6 @@ vi.mock("./supabase", () => ({
     }),
   }),
 }));
-/* eslint-enable @typescript-eslint/no-unused-vars */
 
 const TEST_ENV = {
   SERPER_API_KEY: "x",
