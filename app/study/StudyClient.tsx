@@ -1,8 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { z } from "zod";
 import {
   postComplete,
+  setParentOrigin,
   useHeartbeat,
   useResizeObserver,
 } from "./_hooks/useIframeBridge";
@@ -12,113 +14,180 @@ import { InjectedSearch } from "./_conditions/InjectedSearch";
 import { VanillaAgent } from "./_conditions/VanillaAgent";
 import { InjectedAgent } from "./_conditions/InjectedAgent";
 
-type Condition =
-  | "vanilla_search"
-  | "injected_search"
-  | "vanilla_agent"
-  | "injected_agent";
+const ConditionValues = [
+  "vanilla_search",
+  "injected_search",
+  "vanilla_agent",
+  "injected_agent",
+] as const;
+type Condition = (typeof ConditionValues)[number];
+
+const SessionResponseSchema = z.object({
+  session_id: z.string().min(1),
+  condition: z.enum(ConditionValues),
+  topic_id: z.string().min(1),
+  topic_text: z.string(),
+});
+type SessionResponse = z.infer<typeof SessionResponseSchema>;
+
+const CompleteResponseSchema = z.object({
+  session_id: z.string().min(1),
+  completion_code: z.string().min(1),
+  duration_ms: z.number().nonnegative(),
+});
 
 type Stage =
-  | { stage: "consent" }
   | { stage: "loading" }
-  | { stage: "error"; message: string }
+  | { stage: "consent"; session: SessionResponse }
+  | { stage: "active"; session: SessionResponse }
   | {
-      stage: "active";
-      session_id: string;
-      condition: Condition;
-      topic_id: string;
-      topic_text: string;
+      stage: "complete";
+      completion_code: string;
+      duration_ms: number;
     }
-  | { stage: "complete"; completion_code: string; duration_ms: number };
+  | { stage: "error"; message: string };
 
 export function StudyClient(props: {
   initialParticipantId: string;
   initialTopicId?: string;
+  parentOrigin?: string;
 }) {
-  const { initialParticipantId, initialTopicId } = props;
+  const { initialParticipantId, initialTopicId, parentOrigin } = props;
   const [participantId] = useState<string>(initialParticipantId);
-  const [state, setState] = useState<Stage>({ stage: "consent" });
+  const [state, setState] = useState<Stage>(
+    participantId
+      ? { stage: "loading" }
+      : {
+          stage: "error",
+          message:
+            "Missing participant_id. This page is intended to be launched with ?participant_id=... from the parent survey.",
+        },
+  );
+  const [inFlight, setInFlight] = useState<boolean>(false);
+  const completeGuard = useRef<boolean>(false);
 
   const rootRef = useRef<HTMLDivElement>(null);
   useResizeObserver(rootRef);
   useHeartbeat(state.stage === "active");
 
+  // Bind parent origin (if the embedder passed one) before any postMessage
+  // can fire. Runs synchronously at mount before resize / heartbeat effects
+  // would post.
+  useEffect(() => {
+    setParentOrigin(parentOrigin ?? null);
+  }, [parentOrigin]);
+
   const sessionId =
-    state.stage === "active" ? state.session_id : null;
+    state.stage === "active" || state.stage === "consent"
+      ? state.session.session_id
+      : null;
   const logger = useEventLogger(sessionId);
 
-  async function handleConsent() {
-    if (!participantId) {
-      setState({
-        stage: "error",
-        message:
-          "Missing participant_id. This page is intended to be launched with ?participant_id=... from the parent survey.",
-      });
-      return;
-    }
-    setState({ stage: "loading" });
-    try {
-      const res = await fetch("/api/session", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          participant_id: participantId,
-          topic_id: initialTopicId,
-          user_agent:
-            typeof navigator !== "undefined" ? navigator.userAgent : undefined,
-          referrer:
-            typeof document !== "undefined" ? document.referrer : undefined,
-        }),
-      });
-      const body = await res.json();
-      if (!res.ok) {
-        throw new Error(body.error || `session create failed (${res.status})`);
+  // Fetch session on mount so the consent screen can show topic_text
+  // (matches plan Task 16 step 2: "ConsentPanel: topic text and Begin
+  // button"). Bouncers leave behind a sessions row with no completion_code,
+  // which is expected and benign.
+  useEffect(() => {
+    if (!participantId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/session", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            participant_id: participantId,
+            topic_id: initialTopicId,
+            user_agent:
+              typeof navigator !== "undefined"
+                ? navigator.userAgent
+                : undefined,
+            referrer:
+              typeof document !== "undefined" ? document.referrer : undefined,
+          }),
+        });
+        const rawBody: unknown = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const err = (rawBody as { error?: string }).error;
+          throw new Error(err || `session create failed (${res.status})`);
+        }
+        const parsed = SessionResponseSchema.safeParse(rawBody);
+        if (!parsed.success) {
+          throw new Error(
+            `server returned an unexpected session shape: ${parsed.error.issues
+              .map((i) => i.path.join("."))
+              .join(", ")}`,
+          );
+        }
+        if (cancelled) return;
+        setState({ stage: "consent", session: parsed.data });
+      } catch (err) {
+        if (cancelled) return;
+        setState({
+          stage: "error",
+          message: err instanceof Error ? err.message : "unknown error",
+        });
       }
-      setState({
-        stage: "active",
-        session_id: body.session_id,
-        condition: body.condition,
-        topic_id: body.topic_id,
-        topic_text: body.topic_text,
-      });
-    } catch (err) {
-      setState({
-        stage: "error",
-        message: err instanceof Error ? err.message : "unknown error",
-      });
-    }
-  }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [participantId, initialTopicId]);
 
-  async function handleComplete() {
+  const handleConsent = useCallback(() => {
+    if (state.stage !== "consent") return;
+    setState({ stage: "active", session: state.session });
+  }, [state]);
+
+  const handleComplete = useCallback(async () => {
     if (state.stage !== "active") return;
+    // Guard against double-submit: a double-click or a mobile "tap twice"
+    // would otherwise hit /api/complete twice, stressing the conditional
+    // update there.
+    if (completeGuard.current) return;
+    completeGuard.current = true;
+    setInFlight(true);
     try {
       await logger.flush();
       const res = await fetch("/api/complete", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ session_id: state.session_id }),
+        body: JSON.stringify({ session_id: state.session.session_id }),
       });
-      const body = await res.json();
+      const rawBody: unknown = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(body.error || `complete failed (${res.status})`);
+        const err = (rawBody as { error?: string }).error;
+        throw new Error(err || `complete failed (${res.status})`);
+      }
+      const parsed = CompleteResponseSchema.safeParse(rawBody);
+      if (!parsed.success) {
+        throw new Error(
+          `server returned an unexpected completion shape: ${parsed.error.issues
+            .map((i) => i.path.join("."))
+            .join(", ")}`,
+        );
       }
       postComplete({
         participant_id: participantId,
-        completion_code: body.completion_code,
-        duration_ms: body.duration_ms,
+        completion_code: parsed.data.completion_code,
+        duration_ms: parsed.data.duration_ms,
       });
       setState({
         stage: "complete",
-        completion_code: body.completion_code,
-        duration_ms: body.duration_ms,
+        completion_code: parsed.data.completion_code,
+        duration_ms: parsed.data.duration_ms,
       });
     } catch (err) {
+      // Reset the guard so the user can retry after a transient failure.
+      completeGuard.current = false;
       setState({
         stage: "error",
         message: err instanceof Error ? err.message : "unknown error",
       });
+    } finally {
+      setInFlight(false);
     }
-  }
+  }, [state, participantId, logger]);
 
   return (
     <main
@@ -126,28 +195,29 @@ export function StudyClient(props: {
       className="mx-auto min-h-screen max-w-3xl space-y-6 p-6 font-sans"
       data-testid="study-root"
     >
-      {state.stage === "consent" && (
-        <ConsentForm
-          participantId={participantId}
-          onAccept={handleConsent}
-        />
-      )}
-
       {state.stage === "loading" && (
         <p data-testid="study-loading">Preparing your session…</p>
       )}
 
-      {state.stage === "error" && (
-        <ErrorPanel message={state.message} />
+      {state.stage === "consent" && (
+        <ConsentForm
+          participantId={participantId}
+          topicText={state.session.topic_text}
+          disabled={inFlight || !participantId}
+          onAccept={handleConsent}
+        />
       )}
+
+      {state.stage === "error" && <ErrorPanel message={state.message} />}
 
       {state.stage === "active" && (
         <ActiveCondition
-          condition={state.condition}
-          sessionId={state.session_id}
-          topicId={state.topic_id}
-          topicText={state.topic_text}
+          condition={state.session.condition}
+          sessionId={state.session.session_id}
+          topicId={state.session.topic_id}
+          topicText={state.session.topic_text}
           logger={logger}
+          disabled={inFlight}
           onComplete={handleComplete}
         />
       )}
@@ -164,6 +234,8 @@ export function StudyClient(props: {
 
 function ConsentForm(props: {
   participantId: string;
+  topicText: string;
+  disabled: boolean;
   onAccept: () => void;
 }) {
   return (
@@ -173,6 +245,15 @@ function ConsentForm(props: {
         You&apos;re about to take part in a short task about searching for
         information online. The session will take roughly 5 minutes.
       </p>
+      <section
+        className="space-y-2 rounded border border-gray-200 bg-gray-50 p-4"
+        data-testid="consent-topic"
+      >
+        <p className="text-xs uppercase tracking-wide text-gray-500">
+          Your topic
+        </p>
+        <p className="text-base">{props.topicText}</p>
+      </section>
       <p className="text-sm text-gray-600">
         Your interactions (searches, clicks, messages) are logged to study how
         people evaluate information. No personal identifiers are collected.
@@ -186,7 +267,7 @@ function ConsentForm(props: {
       <button
         type="button"
         className="rounded bg-black px-4 py-2 text-white hover:bg-gray-800 disabled:bg-gray-400"
-        disabled={!props.participantId}
+        disabled={props.disabled}
         onClick={props.onAccept}
         data-testid="consent-accept"
       >
@@ -204,6 +285,7 @@ function ActiveCondition(
     topicId: string;
     topicText: string;
     logger: ReturnType<typeof useEventLogger>;
+    disabled: boolean;
     onComplete: () => void | Promise<void>;
   },
 ) {
@@ -212,6 +294,7 @@ function ActiveCondition(
     topicId: props.topicId,
     topicText: props.topicText,
     logger: props.logger,
+    disabled: props.disabled,
     onComplete: props.onComplete,
   };
   switch (props.condition) {
@@ -251,7 +334,10 @@ function CompletionScreen(props: { code: string; durationMs: number }) {
 
 function ErrorPanel(props: { message: string }) {
   return (
-    <section className="space-y-2 rounded border border-red-300 bg-red-50 p-4" data-testid="error-panel">
+    <section
+      className="space-y-2 rounded border border-red-300 bg-red-50 p-4"
+      data-testid="error-panel"
+    >
       <h2 className="font-semibold text-red-800">Something went wrong</h2>
       <p className="text-sm text-red-700">{props.message}</p>
     </section>
