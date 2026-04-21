@@ -32,9 +32,22 @@ export function useEventLogger(sessionId: string | null): EventLogger {
   const t0Ref = useRef<number>(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sessionIdRef = useRef<string | null>(sessionId);
+  // Mutable pointer to flushAll so the sessionId-change effect can call it
+  // without listing flushAll as a dep (which would thrash the transition
+  // detection below).
+  const flushAllRef = useRef<((useBeacon: boolean) => Promise<void>) | null>(
+    null,
+  );
 
   useEffect(() => {
+    const prev = sessionIdRef.current;
     sessionIdRef.current = sessionId;
+    // When sessionId transitions from null to a real value, drain any events
+    // that were logged during the consent/loading phase so they make it to
+    // the server with the correct session attribution.
+    if (!prev && sessionId && bufferRef.current.length > 0) {
+      void flushAllRef.current?.(false);
+    }
   }, [sessionId]);
 
   const sendBatch = useCallback(
@@ -66,8 +79,14 @@ export function useEventLogger(sessionId: string | null): EventLogger {
     [],
   );
 
+  // Hold events in the buffer until sessionId has been established. Without
+  // this guard, flushAll() would splice the events out and then sendBatch
+  // would no-op on the null sid, silently dropping them — which matters
+  // because any event logged between mount and the first session-ready
+  // render (e.g. during fetch of /api/session) would be lost.
   const flushAll = useCallback(
     async (useBeacon: boolean = false): Promise<void> => {
+      if (!sessionIdRef.current) return;
       while (bufferRef.current.length > 0) {
         const chunk = bufferRef.current.splice(0, MAX_BATCH);
         await sendBatch(chunk, useBeacon);
@@ -75,6 +94,7 @@ export function useEventLogger(sessionId: string | null): EventLogger {
     },
     [sendBatch],
   );
+  flushAllRef.current = flushAll;
 
   useEffect(() => {
     t0Ref.current = performance.now();
