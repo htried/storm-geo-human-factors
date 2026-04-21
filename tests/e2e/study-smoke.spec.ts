@@ -47,38 +47,71 @@ test.describe("study smoke", () => {
         body: JSON.stringify(FAKE_COMPLETION),
       });
     });
-  });
 
-  test("consent → active condition → complete with code", async ({ page }) => {
-    await page.goto("/study?participant_id=test-e2e");
-    await expect(page.getByTestId("consent-form")).toBeVisible();
-
-    const postMessageCapture = page.evaluate(() => {
-      (window as unknown as { __msgs: unknown[] }).__msgs = [];
+    // Install the postMessage capture BEFORE the page runs so we catch every
+    // message — resize, heartbeat, and study_complete. Uses `addInitScript`
+    // so it runs in every navigated document before app scripts.
+    await page.addInitScript(() => {
+      const store: unknown[] = [];
+      (window as unknown as { __msgs: unknown[] }).__msgs = store;
       window.addEventListener("message", (e) => {
-        (window as unknown as { __msgs: unknown[] }).__msgs.push(e.data);
+        store.push(e.data);
       });
     });
-    await postMessageCapture;
+  });
+
+  test("loading -> consent with topic -> active condition -> complete, and a study_complete postMessage is dispatched to the parent", async ({
+    page,
+  }) => {
+    await page.goto("/study?participant_id=test-e2e");
+
+    // Session is fetched on mount. Consent form appears after the /api/session
+    // response, with the topic text rendered on it.
+    await expect(page.getByTestId("consent-form")).toBeVisible();
+    await expect(page.getByTestId("consent-topic")).toContainText(
+      FAKE_SESSION.topic_text,
+    );
 
     await page.getByTestId("consent-accept").click();
 
     await expect(page.getByText("Vanilla Search")).toBeVisible();
-    await expect(
-      page.getByText(FAKE_SESSION.topic_text, { exact: false }),
-    ).toBeVisible();
 
-    await page.getByRole("button", { name: /finish/i }).click();
+    await page.getByTestId("condition-finish").click();
 
     await expect(page.getByTestId("completion-screen")).toBeVisible();
     await expect(page.getByTestId("completion-code")).toHaveText(
       FAKE_COMPLETION.completion_code,
     );
+
+    // Core contract for the iframe bridge: a study_complete message with the
+    // expected payload must have been dispatched to window.parent. The capture
+    // is installed in addInitScript above, so messages posted during the
+    // entire flow are collected.
+    const msgs = await page.evaluate(
+      () => (window as unknown as { __msgs: unknown[] }).__msgs,
+    );
+    const complete = (
+      msgs as Array<{
+        source?: string;
+        type?: string;
+        participant_id?: string;
+        completion_code?: string;
+        duration_ms?: number;
+      }>
+    ).find(
+      (m) => m?.source === "storm-study" && m?.type === "study_complete",
+    );
+    expect(complete, "expected a study_complete postMessage").toBeDefined();
+    expect(complete!.participant_id).toBe("test-e2e");
+    expect(complete!.completion_code).toBe(FAKE_COMPLETION.completion_code);
+    expect(complete!.duration_ms).toBe(FAKE_COMPLETION.duration_ms);
   });
 
-  test("shows an error if participant_id is missing", async ({ page }) => {
+  test("shows an error panel if participant_id is missing", async ({
+    page,
+  }) => {
     await page.goto("/study");
-    await expect(page.getByTestId("consent-form")).toBeVisible();
-    await expect(page.getByTestId("consent-accept")).toBeDisabled();
+    await expect(page.getByTestId("error-panel")).toBeVisible();
+    await expect(page.getByTestId("consent-form")).not.toBeVisible();
   });
 });

@@ -7,6 +7,7 @@ export interface ConditionProps {
   topicId: string;
   topicText: string;
   logger: EventLogger;
+  disabled?: boolean;
   onComplete: () => void | Promise<void>;
 }
 
@@ -36,7 +37,9 @@ export function PlaceholderCondition(
 
       <button
         type="button"
-        className="rounded bg-black px-4 py-2 text-white hover:bg-gray-800"
+        className="rounded bg-black px-4 py-2 text-white hover:bg-gray-800 disabled:bg-gray-400"
+        disabled={props.disabled ?? false}
+        data-testid="condition-finish"
         onClick={() => {
           props.logger.log("condition_placeholder_done", {
             condition: props.conditionLabel,
