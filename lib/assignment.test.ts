@@ -25,12 +25,17 @@ describe("assignCondition", () => {
     }
   });
 
-  it("differs across different secrets", () => {
-    const any = [0, 1, 2, 3].some(
-      (i) =>
+  it("differs across different secrets (in aggregate)", () => {
+    let differences = 0;
+    const N = 40;
+    for (let i = 0; i < N; i++) {
+      if (
         assignCondition(`q${i}`, SECRET) !==
-        assignCondition(`q${i}`, SECRET + "-other"),
-    );
-    expect(any).toBe(true);
+        assignCondition(`q${i}`, SECRET + "-other")
+      ) {
+        differences++;
+      }
+    }
+    expect(differences).toBeGreaterThan(N / 3);
   });
 });
