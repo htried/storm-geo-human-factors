@@ -88,14 +88,20 @@ type State =
   | { kind: "error"; query: string; page: number; message: string };
 
 export function SearchView(props: Props) {
-  const fetcher = props.fetcher ?? defaultFetcher;
-  const openWindow =
-    props.openWindow ??
-    ((url: string) => {
-      if (typeof window !== "undefined") {
-        window.open(url, "_blank", "noopener,noreferrer");
-      }
-    });
+  const fetcher = useMemo(
+    () => props.fetcher ?? defaultFetcher,
+    [props.fetcher],
+  );
+  const openWindow = useMemo(
+    () =>
+      props.openWindow ??
+      ((url: string) => {
+        if (typeof window !== "undefined") {
+          window.open(url, "_blank", "noopener,noreferrer");
+        }
+      }),
+    [props.openWindow],
+  );
   const [state, setState] = useState<State>({ kind: "idle" });
   const [input, setInput] = useState<string>("");
   const inFlightRef = useRef(0);
