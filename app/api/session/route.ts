@@ -138,31 +138,74 @@ export async function POST(req: Request): Promise<Response> {
 
   const cfg = await getAppConfig();
 
-  const { data: session, error: insertErr } = await sb
+  // The initial lookup above short-circuits the common idempotent case, but
+  // two concurrent POSTs for a *new* participant can both pass it. The
+  // sessions table has a unique constraint on participant_id, so we use an
+  // upsert with ignoreDuplicates to make the insert atomic: the loser of the
+  // race gets `data === null` and re-reads the winner's row.
+  const { data: insertedRows, error: insertErr } = await sb
     .from("sessions")
-    .insert({
-      participant_id: body.participant_id,
-      condition,
-      topic_id,
-      assigned_by,
-      chat_model_used: cfg.chat_model,
-      chat_temperature_used: cfg.chat_temperature,
-      embedding_model_used: cfg.embedding_model,
-    })
-    .select()
-    .single();
+    .upsert(
+      {
+        participant_id: body.participant_id,
+        condition,
+        topic_id,
+        assigned_by,
+        chat_model_used: cfg.chat_model,
+        chat_temperature_used: cfg.chat_temperature,
+        embedding_model_used: cfg.embedding_model,
+      },
+      { onConflict: "participant_id", ignoreDuplicates: true },
+    )
+    .select();
 
-  if (insertErr || !session) {
+  if (insertErr) {
     return NextResponse.json(
-      { error: "failed to create session", detail: insertErr?.message },
+      { error: "failed to create session", detail: insertErr.message },
       { status: 500 },
     );
   }
 
+  const session =
+    Array.isArray(insertedRows) && insertedRows.length > 0
+      ? insertedRows[0]
+      : null;
+
+  if (session) {
+    return NextResponse.json({
+      session_id: (session as { session_id: string }).session_id,
+      condition,
+      topic_id,
+      topic_text: topic.topic_text,
+    });
+  }
+
+  // Lost the race: another request for the same participant just created a
+  // session. Re-read and return the winning row so the response is
+  // idempotent regardless of which caller we were.
+  const { data: raced, error: racedErr } = await sb
+    .from("sessions")
+    .select("*")
+    .eq("participant_id", body.participant_id)
+    .maybeSingle();
+
+  if (racedErr || !raced) {
+    return NextResponse.json(
+      {
+        error: "failed to resolve session after concurrent create",
+        detail: racedErr?.message,
+      },
+      { status: 500 },
+    );
+  }
+
+  const racedTopic = corpus.topics.find(
+    (t) => t.topic_id === (raced as { topic_id: string }).topic_id,
+  );
   return NextResponse.json({
-    session_id: session.session_id,
-    condition,
-    topic_id,
-    topic_text: topic.topic_text,
+    session_id: (raced as { session_id: string }).session_id,
+    condition: (raced as { condition: Condition }).condition,
+    topic_id: (raced as { topic_id: string }).topic_id,
+    topic_text: racedTopic?.topic_text ?? "",
   });
 }

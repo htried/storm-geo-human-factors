@@ -1,20 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// ---- Supabase mock infrastructure ---------------------------------------
-
 type Call = { op: string; table: string; args?: unknown; opts?: unknown };
 
 const state: {
+  // First .from("sessions").select().eq().maybeSingle() call
   existingSession: Record<string, unknown> | null;
-  insertedSession: Record<string, unknown> | null;
-  insertSessionError: { message: string } | null;
+  // Second (race re-read) .from("sessions").select().eq().maybeSingle() call
+  reReadSession: Record<string, unknown> | null;
+  // Rows returned from .from("sessions").upsert(...).select()
+  upsertedSessions: Array<Record<string, unknown>> | null;
+  upsertSessionError: { message: string } | null;
   upsertParticipantError: { message: string } | null;
+  lookupError: { message: string } | null;
+  reReadError: { message: string } | null;
   calls: Call[];
 } = {
   existingSession: null,
-  insertedSession: null,
-  insertSessionError: null,
+  reReadSession: null,
+  upsertedSessions: null,
+  upsertSessionError: null,
   upsertParticipantError: null,
+  lookupError: null,
+  reReadError: null,
   calls: [],
 };
 
@@ -25,33 +32,37 @@ vi.mock("@/lib/supabase", () => ({
         eq: (_col: string, _val: unknown) => ({
           maybeSingle: async () => {
             state.calls.push({ op: "select.eq.maybeSingle", table });
-            if (table === "sessions") {
-              return { data: state.existingSession, error: null };
+            if (table !== "sessions") {
+              return { data: null, error: null };
             }
-            return { data: null, error: null };
+            const prior = state.calls.filter(
+              (c) =>
+                c.op === "select.eq.maybeSingle" && c.table === "sessions",
+            ).length;
+            if (prior > 1 && (state.reReadSession || state.reReadError)) {
+              return { data: state.reReadSession, error: state.reReadError };
+            }
+            return { data: state.existingSession, error: state.lookupError };
           },
         }),
       }),
-      insert: (row: unknown) => {
-        state.calls.push({ op: "insert", table, args: row });
-        return {
-          select: () => ({
-            single: async () => ({
-              data: state.insertedSession,
-              error: state.insertSessionError,
-            }),
-          }),
-        };
-      },
-      upsert: async (row: unknown, opts?: unknown) => {
+      upsert: (row: unknown, opts?: unknown) => {
         state.calls.push({ op: "upsert", table, args: row, opts });
-        return { error: state.upsertParticipantError };
+        if (table === "participants") {
+          return Promise.resolve({ error: state.upsertParticipantError });
+        }
+        // sessions: chained with .select() returning an array of rows
+        return {
+          select: () =>
+            Promise.resolve({
+              data: state.upsertedSessions,
+              error: state.upsertSessionError,
+            }),
+        };
       },
     }),
   }),
 }));
-
-// ---- Corpus + config mocks ----------------------------------------------
 
 const FAKE_CORPUS = {
   version: "test",
@@ -101,8 +112,6 @@ vi.mock("@/lib/config", () => ({
   }),
 }));
 
-// ---- Env setup -----------------------------------------------------------
-
 const TEST_ENV = {
   SERPER_API_KEY: "x",
   OPENAI_API_KEY: "x",
@@ -122,13 +131,14 @@ beforeEach(async () => {
   const { __resetEnvForTest } = await import("@/lib/env");
   __resetEnvForTest();
   state.existingSession = null;
-  state.insertedSession = null;
-  state.insertSessionError = null;
+  state.reReadSession = null;
+  state.upsertedSessions = null;
+  state.upsertSessionError = null;
   state.upsertParticipantError = null;
+  state.lookupError = null;
+  state.reReadError = null;
   state.calls = [];
 });
-
-// ---- Helpers -------------------------------------------------------------
 
 async function callPOST(
   body: unknown,
@@ -143,15 +153,15 @@ async function callPOST(
   return POST(req);
 }
 
-// ---- Tests --------------------------------------------------------------
-
 describe("POST /api/session", () => {
   it("creates a new session with HMAC-assigned condition", async () => {
-    state.insertedSession = {
-      session_id: "00000000-0000-0000-0000-000000000001",
-      condition: "vanilla_search",
-      topic_id: "topic-a",
-    };
+    state.upsertedSessions = [
+      {
+        session_id: "00000000-0000-0000-0000-000000000001",
+        condition: "vanilla_search",
+        topic_id: "topic-a",
+      },
+    ];
     const res = await callPOST({
       participant_id: "p-new",
       topic_id: "topic-a",
@@ -161,20 +171,27 @@ describe("POST /api/session", () => {
     expect(body.session_id).toBe("00000000-0000-0000-0000-000000000001");
     expect(body.topic_id).toBe("topic-a");
     expect(body.topic_text).toBe("Topic A prompt");
-    expect(["vanilla_search", "injected_search", "vanilla_agent", "injected_agent"]).toContain(
-      body.condition,
-    );
+    expect([
+      "vanilla_search",
+      "injected_search",
+      "vanilla_agent",
+      "injected_agent",
+    ]).toContain(body.condition);
 
-    const insertCall = state.calls.find(
-      (c) => c.op === "insert" && c.table === "sessions",
+    const upsertSession = state.calls.find(
+      (c) => c.op === "upsert" && c.table === "sessions",
     );
-    expect(insertCall).toBeDefined();
-    const row = insertCall!.args as Record<string, unknown>;
+    expect(upsertSession).toBeDefined();
+    const row = upsertSession!.args as Record<string, unknown>;
     expect(row.assigned_by).toBe("hash");
     expect(row.chat_model_used).toBe("gpt-4o-mini");
     expect(row.chat_temperature_used).toBe(0.3);
     expect(row.embedding_model_used).toBe("text-embedding-3-small");
     expect(row.participant_id).toBe("p-new");
+    expect(upsertSession!.opts).toMatchObject({
+      onConflict: "participant_id",
+      ignoreDuplicates: true,
+    });
   });
 
   it("is idempotent: returns existing session for a known participant", async () => {
@@ -192,10 +209,34 @@ describe("POST /api/session", () => {
     expect(body.topic_id).toBe("topic-b");
     expect(body.topic_text).toBe("Topic B prompt");
 
-    const inserts = state.calls.filter((c) => c.op === "insert");
-    expect(inserts).toHaveLength(0);
     const upserts = state.calls.filter((c) => c.op === "upsert");
     expect(upserts).toHaveLength(0);
+  });
+
+  it("on a lost create race (upsert returns empty rows), re-reads and returns the winning row", async () => {
+    state.existingSession = null;
+    state.upsertedSessions = []; // ignoreDuplicates returns no rows on conflict
+    state.reReadSession = {
+      session_id: "99999999-9999-9999-9999-999999999999",
+      condition: "vanilla_search",
+      topic_id: "topic-b",
+      participant_id: "p-race",
+    };
+    const res = await callPOST({
+      participant_id: "p-race",
+      topic_id: "topic-a",
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.session_id).toBe("99999999-9999-9999-9999-999999999999");
+    expect(body.condition).toBe("vanilla_search");
+    expect(body.topic_id).toBe("topic-b");
+    expect(body.topic_text).toBe("Topic B prompt");
+
+    const sessionSelects = state.calls.filter(
+      (c) => c.op === "select.eq.maybeSingle" && c.table === "sessions",
+    );
+    expect(sessionSelects.length).toBe(2);
   });
 
   it("rejects condition_override without an admin token (403)", async () => {
@@ -204,8 +245,10 @@ describe("POST /api/session", () => {
       condition_override: "injected_agent",
     });
     expect(res.status).toBe(403);
-    const inserts = state.calls.filter((c) => c.op === "insert");
-    expect(inserts).toHaveLength(0);
+    const upserts = state.calls.filter(
+      (c) => c.op === "upsert" && c.table === "sessions",
+    );
+    expect(upserts).toHaveLength(0);
   });
 
   it("rejects condition_override with a wrong admin token (403)", async () => {
@@ -217,11 +260,13 @@ describe("POST /api/session", () => {
   });
 
   it("accepts condition_override with the correct admin token and sets assigned_by=researcher_override", async () => {
-    state.insertedSession = {
-      session_id: "22222222-2222-2222-2222-222222222222",
-      condition: "injected_agent",
-      topic_id: "topic-a",
-    };
+    state.upsertedSessions = [
+      {
+        session_id: "22222222-2222-2222-2222-222222222222",
+        condition: "injected_agent",
+        topic_id: "topic-a",
+      },
+    ];
     const res = await callPOST(
       {
         participant_id: "p-researcher",
@@ -233,11 +278,11 @@ describe("POST /api/session", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.condition).toBe("injected_agent");
-    const insertCall = state.calls.find(
-      (c) => c.op === "insert" && c.table === "sessions",
+    const upsertSession = state.calls.find(
+      (c) => c.op === "upsert" && c.table === "sessions",
     );
-    expect(insertCall).toBeDefined();
-    const row = insertCall!.args as Record<string, unknown>;
+    expect(upsertSession).toBeDefined();
+    const row = upsertSession!.args as Record<string, unknown>;
     expect(row.assigned_by).toBe("researcher_override");
     expect(row.condition).toBe("injected_agent");
   });
@@ -256,11 +301,13 @@ describe("POST /api/session", () => {
   });
 
   it("picks a random topic from the corpus when topic_id is omitted", async () => {
-    state.insertedSession = {
-      session_id: "33333333-3333-3333-3333-333333333333",
-      condition: "vanilla_search",
-      topic_id: "topic-a",
-    };
+    state.upsertedSessions = [
+      {
+        session_id: "33333333-3333-3333-3333-333333333333",
+        condition: "vanilla_search",
+        topic_id: "topic-a",
+      },
+    ];
     const res = await callPOST({ participant_id: "p-no-topic" });
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -273,11 +320,22 @@ describe("POST /api/session", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns 500 if session insert fails", async () => {
-    state.insertedSession = null;
-    state.insertSessionError = { message: "boom" };
+  it("returns 500 if session upsert fails with a DB error", async () => {
+    state.upsertedSessions = null;
+    state.upsertSessionError = { message: "boom" };
     const res = await callPOST({
       participant_id: "p-fail",
+      topic_id: "topic-a",
+    });
+    expect(res.status).toBe(500);
+  });
+
+  it("returns 500 when upsert returns empty rows AND re-read also fails", async () => {
+    state.upsertedSessions = [];
+    state.reReadSession = null;
+    state.reReadError = { message: "race + db down" };
+    const res = await callPOST({
+      participant_id: "p-zombie",
       topic_id: "topic-a",
     });
     expect(res.status).toBe(500);
