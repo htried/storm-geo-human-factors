@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import type { Corpus, Topic } from "./corpus-types";
+import { CorpusSchema, type Corpus, type Topic } from "./corpus-types";
 
 export function cosine(a: readonly number[], b: readonly number[]): number {
   if (a.length !== b.length) throw new Error("vector length mismatch");
@@ -35,16 +35,30 @@ export function findNearestTopic(
   return { topic: best, similarity: bestSim };
 }
 
-let cached: Corpus | null = null;
+let pending: Promise<Corpus> | null = null;
 
-export async function loadCorpus(): Promise<Corpus> {
-  if (cached) return cached;
-  const p = path.join(process.cwd(), "app", "data", "corpus.json");
-  const raw = await fs.promises.readFile(p, "utf8");
-  cached = JSON.parse(raw) as Corpus;
-  return cached;
+function defaultCorpusPath(): string {
+  return (
+    process.env.CORPUS_PATH ??
+    path.join(process.cwd(), "app", "data", "corpus.json")
+  );
+}
+
+export async function loadCorpus(corpusPath?: string): Promise<Corpus> {
+  if (pending) return pending;
+  const p = corpusPath ?? defaultCorpusPath();
+  pending = (async () => {
+    const raw = await fs.promises.readFile(p, "utf8");
+    const parsed: unknown = JSON.parse(raw);
+    return CorpusSchema.parse(parsed);
+  })();
+  // Reset on failure so a retry is possible.
+  pending.catch(() => {
+    pending = null;
+  });
+  return pending;
 }
 
 export function __resetCorpusForTest() {
-  cached = null;
+  pending = null;
 }
