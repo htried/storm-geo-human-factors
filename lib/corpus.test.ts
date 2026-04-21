@@ -116,6 +116,28 @@ describe("loadCorpus", () => {
     expect(b).toBe(c);
   });
 
+  it("falls back to app/data/corpus.placeholder.json when corpus.json is missing and no path is given", async () => {
+    // We exercise the default-path branch by pointing process.cwd() to a
+    // scratch tree that contains only the placeholder.
+    const dataDir = path.join(tmpDir, "app", "data");
+    await fs.promises.mkdir(dataDir, { recursive: true });
+    await fs.promises.writeFile(
+      path.join(dataDir, "corpus.placeholder.json"),
+      JSON.stringify(CORPUS),
+    );
+    const prevCwd = process.cwd();
+    const prevCorpusPath = process.env.CORPUS_PATH;
+    delete process.env.CORPUS_PATH;
+    process.chdir(tmpDir);
+    try {
+      const loaded = await loadCorpus();
+      expect(loaded.version).toBe("test");
+    } finally {
+      process.chdir(prevCwd);
+      if (prevCorpusPath !== undefined) process.env.CORPUS_PATH = prevCorpusPath;
+    }
+  });
+
   it("resets cache on failure so retry is possible", async () => {
     await fs.promises.writeFile(corpusFile, "not json at all");
     await expect(loadCorpus(corpusFile)).rejects.toThrow();
