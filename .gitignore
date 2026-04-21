@@ -15,6 +15,8 @@ downloads/
 eggs/
 .eggs/
 lib/
+# Re-include repo-root `lib/` for TypeScript (line above is for Python venvs).
+!/lib/
 lib64/
 parts/
 sdist/
@@ -205,3 +207,48 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+# --- Next.js (create-next-app) ---
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+
+# study artifacts
+app/data/corpus.json
+corpus_sources/
+/.env.local
