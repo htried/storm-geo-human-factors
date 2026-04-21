@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+// Silence the intentional observability console.warn emitted on the fallback path.
+const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
 type MockRow = {
   chat_model: string;
   chat_temperature: number;
@@ -57,6 +60,7 @@ describe("getAppConfig", () => {
     __resetAppConfigForTest();
     state.callCount = 0;
     state.nextOutcome = { data: null, error: null };
+    warnSpy.mockClear();
   });
 
   afterEach(() => {
@@ -143,10 +147,43 @@ describe("getAppConfig", () => {
     }
   });
 
-  it("falls back to env defaults on DB error", async () => {
+  it("falls back to env defaults on DB error and logs a warning", async () => {
     state.nextOutcome = { data: null, error: { message: "boom" } };
     const { getAppConfig } = await import("./config");
     const cfg = await getAppConfig();
     expect(cfg.chat_model).toBe("gpt-4o-mini");
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("boom"),
+    );
+  });
+
+  it("caches the fallback value (does not re-hit DB after error)", async () => {
+    state.nextOutcome = { data: null, error: { message: "boom" } };
+    const { getAppConfig } = await import("./config");
+    await getAppConfig();
+    await getAppConfig();
+    await getAppConfig();
+    expect(state.callCount).toBe(1);
+  });
+
+  it("dedupes concurrent cold-cache callers into a single DB call", async () => {
+    state.nextOutcome = {
+      data: {
+        chat_model: "gpt-x",
+        chat_temperature: 0.5,
+        chat_max_tokens: 500,
+        embedding_model: "em",
+      },
+      error: null,
+    };
+    const { getAppConfig } = await import("./config");
+    const results = await Promise.all([
+      getAppConfig(),
+      getAppConfig(),
+      getAppConfig(),
+      getAppConfig(),
+    ]);
+    expect(state.callCount).toBe(1);
+    for (const r of results) expect(r.chat_model).toBe("gpt-x");
   });
 });
