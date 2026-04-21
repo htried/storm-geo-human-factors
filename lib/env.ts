@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+/** Empty `.env` entries (`VAR=`) should behave like unset so `.default()` applies. */
+const emptyToUndefined = (v: unknown) => (v === "" ? undefined : v);
+
 const Schema = z.object({
   SERPER_API_KEY: z.string().min(1),
   OPENAI_API_KEY: z.string().min(1),
@@ -10,10 +13,10 @@ const Schema = z.object({
   ADMIN_TOKEN: z.string().min(8),
   IP_HASH_SALT: z.string().min(8),
   ALLOWED_FRAME_ANCESTORS: z.string().min(1),
-  CHAT_MODEL: z.string().default("gpt-4o-mini"),
-  CHAT_TEMPERATURE: z.coerce.number().default(0.3),
-  CHAT_MAX_TOKENS: z.coerce.number().int().default(800),
-  EMBEDDING_MODEL: z.string().default("text-embedding-3-small"),
+  CHAT_MODEL: z.preprocess(emptyToUndefined, z.string().default("gpt-4o-mini")),
+  CHAT_TEMPERATURE: z.preprocess(emptyToUndefined, z.coerce.number().default(0.3)),
+  CHAT_MAX_TOKENS: z.preprocess(emptyToUndefined, z.coerce.number().int().default(800)),
+  EMBEDDING_MODEL: z.preprocess(emptyToUndefined, z.string().default("text-embedding-3-small")),
 });
 
 export type AppEnv = z.infer<typeof Schema>;
