@@ -1,10 +1,16 @@
 "use client";
 
-import {
-  PlaceholderCondition,
-  type ConditionProps,
-} from "./PlaceholderCondition";
+import { SearchView } from "../_components/SearchView";
+import type { ConditionProps } from "./PlaceholderCondition";
 
 export function VanillaSearch(props: ConditionProps) {
-  return <PlaceholderCondition {...props} conditionLabel="Vanilla Search" />;
+  return (
+    <SearchView
+      sessionId={props.sessionId}
+      topicText={props.topicText}
+      logger={props.logger}
+      disabled={props.disabled}
+      onComplete={props.onComplete}
+    />
+  );
 }

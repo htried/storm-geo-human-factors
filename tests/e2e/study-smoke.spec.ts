@@ -74,7 +74,10 @@ test.describe("study smoke", () => {
 
     await page.getByTestId("consent-accept").click();
 
-    await expect(page.getByText("Vanilla Search")).toBeVisible();
+    await expect(page.getByTestId("search-view")).toBeVisible();
+    await expect(page.getByTestId("search-topic")).toContainText(
+      FAKE_SESSION.topic_text,
+    );
 
     await page.getByTestId("condition-finish").click();
 
