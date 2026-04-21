@@ -127,13 +127,47 @@ describe("POST /api/events", () => {
     expect(body.inserted).toBe(100);
   });
 
-  it("returns 200 with inserted=0 for empty batch, no DB write", async () => {
+  it("returns 200 with inserted=0 for empty batch on a known session, no DB write", async () => {
+    state.sessionExists = true;
     const res = await callPOST({ session_id: "s", events: [] });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.inserted).toBe(0);
     const inserts = state.calls.filter((c) => c.op === "insert");
     expect(inserts).toHaveLength(0);
+  });
+
+  it("returns 404 for an empty batch on an unknown session (session check precedes short-circuit)", async () => {
+    state.sessionExists = false;
+    const res = await callPOST({ session_id: "ghost", events: [] });
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 400 when a single event payload exceeds 8KB", async () => {
+    const huge = "x".repeat(8 * 1024 + 1);
+    const res = await callPOST({
+      session_id: "s",
+      events: [{ t_ms: 0, type: "big", payload: { blob: huge } }],
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/payload too large/);
+    const inserts = state.calls.filter((c) => c.op === "insert");
+    expect(inserts).toHaveLength(0);
+  });
+
+  it("returns 400 when the sum of per-event payloads exceeds 256KB", async () => {
+    // 50 events * ~6KB each = ~300KB, over the 256KB batch cap.
+    const per = "y".repeat(6 * 1024);
+    const events = Array.from({ length: 50 }, (_, i) => ({
+      t_ms: i,
+      type: "big",
+      payload: { blob: per },
+    }));
+    const res = await callPOST({ session_id: "s", events });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/batch payload too large/);
   });
 
   it("returns 400 for malformed body (missing session_id)", async () => {

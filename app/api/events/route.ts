@@ -4,6 +4,12 @@ import { getSupabase } from "@/lib/supabase";
 import { logEvents } from "@/lib/events";
 
 const MAX_BATCH = 100;
+// Per-event payload cap (serialized JSON bytes). 8 KB covers every event
+// type we emit (clicks, search params, chat metadata) with room to spare,
+// while preventing a malicious or broken client from flooding the DB.
+const MAX_PAYLOAD_BYTES = 8 * 1024;
+// Whole-batch payload cap (sum of per-event payloads).
+const MAX_BATCH_PAYLOAD_BYTES = 256 * 1024;
 
 const EventSchema = z.object({
   t_ms: z.number().int().nonnegative(),
@@ -43,10 +49,33 @@ export async function POST(req: Request): Promise<Response> {
     return badRequest(`batch too large: ${events.length} > ${MAX_BATCH}`);
   }
 
-  if (events.length === 0) {
-    return NextResponse.json({ inserted: 0 });
+  // Payload size enforcement: reject any single event whose payload exceeds
+  // MAX_PAYLOAD_BYTES, or any batch whose total payload exceeds
+  // MAX_BATCH_PAYLOAD_BYTES. Without these caps a client could trivially
+  // inflate DB cost with a single request.
+  let totalPayloadBytes = 0;
+  for (let i = 0; i < events.length; i++) {
+    const ev = events[i]!;
+    if (!ev.payload) continue;
+    const serialized = JSON.stringify(ev.payload);
+    const bytes = Buffer.byteLength(serialized, "utf8");
+    if (bytes > MAX_PAYLOAD_BYTES) {
+      return badRequest(
+        `event[${i}] payload too large: ${bytes} > ${MAX_PAYLOAD_BYTES} bytes`,
+      );
+    }
+    totalPayloadBytes += bytes;
+  }
+  if (totalPayloadBytes > MAX_BATCH_PAYLOAD_BYTES) {
+    return badRequest(
+      `batch payload too large: ${totalPayloadBytes} > ${MAX_BATCH_PAYLOAD_BYTES} bytes`,
+    );
   }
 
+  // Session existence is authoritative even for empty batches: an empty
+  // batch with an unknown session_id should still return 404 so the client
+  // learns about the bad session early instead of discovering it on the
+  // first non-empty flush.
   const sb = getSupabase();
   const { data: session, error: lookupErr } = await sb
     .from("sessions")
@@ -62,6 +91,10 @@ export async function POST(req: Request): Promise<Response> {
   }
   if (!session) {
     return NextResponse.json({ error: "unknown session_id" }, { status: 404 });
+  }
+
+  if (events.length === 0) {
+    return NextResponse.json({ inserted: 0 });
   }
 
   try {
