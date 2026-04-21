@@ -24,4 +24,31 @@ describe("loadEnv", () => {
     expect(env.CHAT_TEMPERATURE).toBeCloseTo(0.3);
     expect(env.CHAT_MAX_TOKENS).toBe(800);
   });
+
+  const validBaseEnv = {
+    SERPER_API_KEY: "x",
+    OPENAI_API_KEY: "x",
+    SUPABASE_URL: "http://x",
+    SUPABASE_SERVICE_ROLE_KEY: "x",
+    ASSIGN_SECRET: "x-long-enough",
+    INJECT_SECRET: "x-long-enough",
+    ADMIN_TOKEN: "x-long-enough",
+    IP_HASH_SALT: "x-long-enough",
+    ALLOWED_FRAME_ANCESTORS: "*",
+  } as const;
+
+  it("treats empty-string CHAT_TEMPERATURE as default 0.3", () => {
+    Object.assign(process.env, { ...validBaseEnv, CHAT_TEMPERATURE: "" });
+    expect(loadEnv().CHAT_TEMPERATURE).toBeCloseTo(0.3);
+  });
+
+  it("treats empty-string EMBEDDING_MODEL as default 'text-embedding-3-small'", () => {
+    Object.assign(process.env, { ...validBaseEnv, EMBEDDING_MODEL: "" });
+    expect(loadEnv().EMBEDDING_MODEL).toBe("text-embedding-3-small");
+  });
+
+  it("rejects invalid SUPABASE_URL", () => {
+    Object.assign(process.env, { ...validBaseEnv, SUPABASE_URL: "not-a-url" });
+    expect(() => loadEnv()).toThrow(/SUPABASE_URL/);
+  });
 });
