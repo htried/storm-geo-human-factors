@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-/** Empty `.env` entries (`VAR=`) should behave like unset so `.default()` applies. */
+/** Empty env values should behave as unset so `.default()` applies (not `""` or `0`). */
 const emptyToUndefined = (v: unknown) => (v === "" ? undefined : v);
 
 const Schema = z.object({
