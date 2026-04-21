@@ -37,18 +37,49 @@ export function findNearestTopic(
 
 let pending: Promise<Corpus> | null = null;
 
-function defaultCorpusPath(): string {
+function primaryCorpusPath(): string {
   return (
     process.env.CORPUS_PATH ??
     path.join(process.cwd(), "app", "data", "corpus.json")
   );
 }
 
+function placeholderCorpusPath(): string {
+  return path.join(process.cwd(), "app", "data", "corpus.placeholder.json");
+}
+
+async function readFileIfExists(p: string): Promise<string | null> {
+  try {
+    return await fs.promises.readFile(p, "utf8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw err;
+  }
+}
+
 export async function loadCorpus(corpusPath?: string): Promise<Corpus> {
   if (pending) return pending;
-  const p = corpusPath ?? defaultCorpusPath();
+  const explicit = corpusPath !== undefined;
+  const primary = corpusPath ?? primaryCorpusPath();
   pending = (async () => {
-    const raw = await fs.promises.readFile(p, "utf8");
+    let raw = await readFileIfExists(primary);
+    // If the caller didn't pass an explicit path and the primary file doesn't
+    // exist (e.g. Phase 5 hasn't built corpus.json yet), fall back to the
+    // committed placeholder corpus so dev server and tests can run.
+    if (raw === null && !explicit) {
+      const placeholder = placeholderCorpusPath();
+      raw = await readFileIfExists(placeholder);
+      if (raw === null) {
+        throw new Error(
+          `loadCorpus: neither ${primary} nor ${placeholder} exists`,
+        );
+      }
+    }
+    if (raw === null) {
+      // Explicit path was given and missing — surface that clearly.
+      await fs.promises.readFile(primary, "utf8");
+      throw new Error(`loadCorpus: ${primary} is unreadable`);
+    }
     const parsed: unknown = JSON.parse(raw);
     return CorpusSchema.parse(parsed);
   })();
