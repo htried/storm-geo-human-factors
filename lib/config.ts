@@ -77,7 +77,11 @@ export async function getAppConfig(): Promise<AppConfig> {
   return pending;
 }
 
-export function __resetAppConfigForTest() {
+export function invalidateAppConfigCache() {
   cached = null;
   pending = null;
+}
+
+export function __resetAppConfigForTest() {
+  invalidateAppConfigCache();
 }

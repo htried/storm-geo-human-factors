@@ -143,14 +143,25 @@ beforeEach(async () => {
 async function callPOST(
   body: unknown,
   headers: Record<string, string> = {},
+  query: string = "",
 ): Promise<Response> {
   const { POST } = await import("./route");
+  const qs = query ? `?${query}` : "";
   const req = new Request("http://test.local/api/session", {
     method: "POST",
     headers: { "content-type": "application/json", ...headers },
     body: typeof body === "string" ? body : JSON.stringify(body),
   });
-  return POST(req);
+  // Request URL is immutable, so rebuild with query params when needed.
+  const reqWithQuery =
+    qs.length > 0
+      ? new Request(`http://test.local/api/session${qs}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...headers },
+    body: typeof body === "string" ? body : JSON.stringify(body),
+      })
+      : req;
+  return POST(reqWithQuery);
 }
 
 describe("POST /api/session", () => {
@@ -285,6 +296,52 @@ describe("POST /api/session", () => {
     const row = upsertSession!.args as Record<string, unknown>;
     expect(row.assigned_by).toBe("researcher_override");
     expect(row.condition).toBe("injected_agent");
+  });
+
+  it("accepts condition_override with a valid signed preview token query param", async () => {
+    state.upsertedSessions = [
+      {
+        session_id: "44444444-4444-4444-4444-444444444444",
+        condition: "injected_search",
+        topic_id: "topic-a",
+      },
+    ];
+    const { createPreviewToken } = await import("@/lib/preview-token");
+    const token = createPreviewToken({
+      participantId: "p-signed",
+      condition: "injected_search",
+      secret: TEST_ENV.ADMIN_TOKEN,
+      expiresAtUnixSec: Math.floor(Date.now() / 1000) + 60 * 60,
+    });
+    const res = await callPOST(
+      {
+        participant_id: "p-signed",
+        topic_id: "topic-a",
+        condition_override: "injected_search",
+      },
+      {},
+      `token=${encodeURIComponent(token)}`,
+    );
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.condition).toBe("injected_search");
+    const upsertSession = state.calls.find(
+      (c) => c.op === "upsert" && c.table === "sessions",
+    );
+    const row = upsertSession!.args as Record<string, unknown>;
+    expect(row.assigned_by).toBe("researcher_override");
+  });
+
+  it("rejects condition_override with an invalid/expired signed preview token", async () => {
+    const res = await callPOST(
+      {
+        participant_id: "p-bad-signed",
+        condition_override: "injected_search",
+      },
+      {},
+      "token=bad.token",
+    );
+    expect(res.status).toBe(403);
   });
 
   it("returns 400 for missing participant_id", async () => {

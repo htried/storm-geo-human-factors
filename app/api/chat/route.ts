@@ -60,7 +60,8 @@ async function nextTurnNumber(sessionId: string): Promise<number> {
   const { data, error } = await sb
     .from("chat_messages")
     .select("turn_number")
-    .eq("session_id", sessionId);
+    .eq("session_id", sessionId)
+    .order("turn_number", { ascending: true });
   if (error) throw new Error(`failed to read chat history: ${error.message}`);
   const arr = Array.isArray(data) ? data : [];
   const max = arr.reduce((m, r) => Math.max(m, Number((r as { turn_number?: number }).turn_number ?? 0)), 0);
@@ -113,6 +114,12 @@ export async function POST(req: Request): Promise<Response> {
     topic_id: string;
     matched_topic_id: string | null;
   };
+  if (row.condition !== "vanilla_agent" && row.condition !== "injected_agent") {
+    return new Response(JSON.stringify({ error: "session is not in an agent condition" }), {
+      status: 400,
+      headers: { "content-type": "application/json" },
+    });
+  }
   const { reportMarkdown, sources, injected } = await chooseTimeline(row);
   const systemPrompt = makeSystemPrompt({ reportMarkdown, sources });
   const cfg = await getAppConfig();
@@ -143,7 +150,8 @@ export async function POST(req: Request): Promise<Response> {
         const prior = await sb
           .from("chat_messages")
           .select("role, content")
-          .eq("session_id", session_id);
+          .eq("session_id", session_id)
+          .order("turn_number", { ascending: true });
         const priorMsgs = Array.isArray(prior.data)
           ? prior.data
               .filter((r) => (r as { role?: string }).role === "user" || (r as { role?: string }).role === "assistant")
@@ -170,11 +178,8 @@ export async function POST(req: Request): Promise<Response> {
           assistant += token;
           controller.enqueue(sse("token", { token }));
         }
-        controller.enqueue(sse("done", { ok: true }));
-        controller.close();
-
         const latency = Date.now() - started;
-        await sb.from("chat_messages").insert({
+        const { error: assistantInsErr } = await sb.from("chat_messages").insert({
           session_id,
           turn_number: turn + 1,
           role: "assistant",
@@ -183,12 +188,17 @@ export async function POST(req: Request): Promise<Response> {
           model: cfg.chat_model,
           latency_ms: latency,
         });
+        if (assistantInsErr) {
+          throw new Error(`failed to persist assistant message: ${assistantInsErr.message}`);
+        }
         await logEvent({
           sessionId: session_id,
           t_ms: Date.now(),
           type: "chat_response_completed",
           payload: { latency_ms: latency, model: cfg.chat_model },
         }).catch(() => {});
+        controller.enqueue(sse("done", { ok: true }));
+        controller.close();
       } catch (err) {
         controller.enqueue(
           sse("error", { message: err instanceof Error ? err.message : String(err) }),
