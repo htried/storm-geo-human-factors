@@ -14,6 +14,25 @@ const state: {
   embedding: number[] | null;
   embeddingShouldThrow: boolean;
   loggedEvents: Array<{ type: string; payload?: Record<string, unknown> }>;
+  corpus: {
+    version: string;
+    embedding_model: string;
+    topics: Array<{
+      topic_id: string;
+      topic_group_id?: string;
+      topic_text: string;
+      topic_embedding: number[];
+      vanilla_timeline: { steps: unknown[]; report_tokens: string[]; citations: unknown[]; total_duration_ms: number };
+      injected_timeline: { steps: unknown[]; report_tokens: string[]; citations: unknown[]; total_duration_ms: number };
+      malicious_source: {
+        title: string;
+        url_slug: string;
+        displayed_url: string;
+        snippet: string;
+        landing_markdown: string;
+      };
+    }>;
+  };
 } = {
   session: null,
   sessionErr: null,
@@ -22,6 +41,11 @@ const state: {
   embedding: [0.2, 0.1],
   embeddingShouldThrow: false,
   loggedEvents: [],
+  corpus: {
+    version: "test",
+    embedding_model: "text-embedding-3-small",
+    topics: [],
+  },
 };
 
 vi.mock("@/lib/supabase", () => ({
@@ -54,43 +78,23 @@ vi.mock("@/lib/openai", () => ({
 }));
 
 vi.mock("@/lib/corpus", () => ({
-  loadCorpus: vi.fn(async () => ({
-    version: "test",
-    embedding_model: "text-embedding-3-small",
-    topics: [
-      {
-        topic_id: "topic-match",
-        topic_text: "x",
-        topic_embedding: [0.1, 0.2],
-        vanilla_timeline: { steps: [], report_tokens: [], citations: [], total_duration_ms: 12_000 },
-        injected_timeline: { steps: [], report_tokens: [], citations: [], total_duration_ms: 21_000 },
-        malicious_source: {
-          title: "a",
-          url_slug: "b",
-          displayed_url: "c",
-          snippet: "d",
-          landing_markdown: "e",
-        },
-      },
-    ],
-  })),
-  findNearestTopic: vi.fn(() => ({
-    topic: {
-      topic_id: "topic-match",
-      topic_text: "x",
-      topic_embedding: [0.1, 0.2],
-      vanilla_timeline: { steps: [], report_tokens: [], citations: [], total_duration_ms: 12_000 },
-      injected_timeline: { steps: [], report_tokens: [], citations: [], total_duration_ms: 21_000 },
-      malicious_source: {
-        title: "a",
-        url_slug: "b",
-        displayed_url: "c",
-        snippet: "d",
-        landing_markdown: "e",
-      },
-    },
+  loadCorpus: vi.fn(async () => state.corpus),
+  findNearestTopic: vi.fn((corpus) => ({
+    topic: (corpus as { topics: Array<{ topic_id: string }> }).topics[0]!,
     similarity: 0.88,
   })),
+  cosine: vi.fn((a: number[], b: number[]) => {
+    let dot = 0;
+    let na = 0;
+    let nb = 0;
+    for (let i = 0; i < Math.min(a.length, b.length); i++) {
+      dot += a[i]! * b[i]!;
+      na += a[i]! * a[i]!;
+      nb += b[i]! * b[i]!;
+    }
+    if (na === 0 || nb === 0) return 0;
+    return dot / Math.sqrt(na * nb);
+  }),
 }));
 
 vi.mock("@/lib/config", () => ({
@@ -129,6 +133,26 @@ beforeEach(() => {
   state.embedding = [0.2, 0.1];
   state.embeddingShouldThrow = false;
   state.loggedEvents = [];
+  state.corpus = {
+    version: "test",
+    embedding_model: "text-embedding-3-small",
+    topics: [
+      {
+        topic_id: "topic-match",
+        topic_text: "x",
+        topic_embedding: [0.1, 0.2],
+        vanilla_timeline: { steps: [], report_tokens: [], citations: [], total_duration_ms: 12_000 },
+        injected_timeline: { steps: [], report_tokens: [], citations: [], total_duration_ms: 21_000 },
+        malicious_source: {
+          title: "a",
+          url_slug: "b",
+          displayed_url: "c",
+          snippet: "d",
+          landing_markdown: "e",
+        },
+      },
+    ],
+  };
 });
 
 describe("POST /api/agent/start", () => {
@@ -174,5 +198,67 @@ describe("POST /api/agent/start", () => {
     const { POST } = await import("./route");
     const res = await POST(req({ session_id: "sess-agent", query: "   " }));
     expect(res.status).toBe(400);
+  });
+
+  it("returns short sample report trigger without embedding dependency", async () => {
+    state.embeddingShouldThrow = true;
+    const { POST } = await import("./route");
+    const res = await POST(
+      req({ session_id: "sess-agent", query: "please run injection injection fake now" }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      matched_topic_id: string;
+      expected_duration_ms: number;
+    };
+    expect(body.matched_topic_id).toBe("__sample_injection_demo__");
+    expect(body.expected_duration_ms).toBeGreaterThan(0);
+  });
+
+  it("selects best run within the same topic group", async () => {
+    state.session = {
+      session_id: "sess-agent",
+      condition: "vanilla_agent",
+      topic_id: "money_run_1",
+    };
+    state.corpus = {
+      version: "test",
+      embedding_model: "text-embedding-3-small",
+      topics: [
+        {
+          topic_id: "money_run_1",
+          topic_group_id: "money_topic",
+          topic_text: "money topic",
+          topic_embedding: [0.1, 0.2],
+          vanilla_timeline: {
+            steps: [],
+            report_tokens: ["generic", "overview", "debt"],
+            citations: [],
+            total_duration_ms: 11_000,
+          },
+          injected_timeline: { steps: [], report_tokens: [], citations: [], total_duration_ms: 21_000 },
+          malicious_source: { title: "a", url_slug: "b", displayed_url: "c", snippet: "d", landing_markdown: "e" },
+        },
+        {
+          topic_id: "money_run_2",
+          topic_group_id: "money_topic",
+          topic_text: "money topic",
+          topic_embedding: [0.1, 0.2],
+          vanilla_timeline: {
+            steps: [],
+            report_tokens: ["collections", "medical", "bill", "credit", "collections"],
+            citations: [],
+            total_duration_ms: 9_000,
+          },
+          injected_timeline: { steps: [], report_tokens: [], citations: [], total_duration_ms: 19_000 },
+          malicious_source: { title: "a", url_slug: "b", displayed_url: "c", snippet: "d", landing_markdown: "e" },
+        },
+      ],
+    };
+    const { POST } = await import("./route");
+    const res = await POST(req({ session_id: "sess-agent", query: "medical bill collections credit impact" }));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { matched_topic_id: string };
+    expect(body.matched_topic_id).toBe("money_run_2");
   });
 });

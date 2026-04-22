@@ -104,4 +104,22 @@ describe("GET /api/agent/stream", () => {
       "ABC",
     );
   });
+
+  it("streams the built-in sample timeline when matched_topic_id is the sample id", async () => {
+    state.session = {
+      session_id: "sess-agent",
+      condition: "injected_agent",
+      topic_id: "topic-a",
+      matched_topic_id: "__sample_injection_demo__",
+    };
+    const { GET } = await import("./route");
+    const res = await GET(
+      new Request("http://localhost/api/agent/stream?session_id=sess-agent"),
+    );
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toContain('event: token');
+    expect(text).toContain("Injection");
+    expect(text).toContain("Demo");
+  });
 });

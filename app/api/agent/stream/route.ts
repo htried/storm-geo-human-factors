@@ -1,6 +1,8 @@
 import { getSupabase } from "@/lib/supabase";
 import { loadCorpus } from "@/lib/corpus";
 import type { Timeline } from "@/lib/corpus-types";
+import { createHash } from "node:crypto";
+import { buildSampleTimeline, SAMPLE_MATCHED_TOPIC_ID } from "@/lib/agent-sample";
 
 const enc = new TextEncoder();
 
@@ -10,6 +12,25 @@ function sse(event: string, data: unknown): Uint8Array {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getTimingFactor(seed: string): number {
+  if (process.env.NODE_ENV === "test") return 1;
+  const digest = createHash("sha256").update(seed).digest();
+  const ratio = digest[0]! / 255;
+  return 0.8 + ratio * 0.4;
+}
+
+function applyTimingFactor(timeline: Timeline, factor: number): Timeline {
+  const steps = timeline.steps.map((step) => ({
+    ...step,
+    t_ms: Math.max(0, Math.round(step.t_ms * factor)),
+  }));
+  const total_duration_ms =
+    timeline.total_duration_ms === undefined
+      ? undefined
+      : Math.max(5_000, Math.round(timeline.total_duration_ms * factor));
+  return { ...timeline, steps, total_duration_ms };
 }
 
 function pickTimeline(args: {
@@ -67,20 +88,27 @@ export async function GET(req: Request): Promise<Response> {
     });
   }
 
-  const corpus = await loadCorpus();
   const topicId = row.matched_topic_id || row.topic_id;
-  const topic = corpus.topics.find((t) => t.topic_id === topicId);
-  if (!topic) {
-    return new Response(JSON.stringify({ error: "matched topic not found in corpus" }), {
-      status: 500,
-      headers: { "content-type": "application/json" },
-    });
+  let base: Timeline;
+  if (topicId === SAMPLE_MATCHED_TOPIC_ID) {
+    base = buildSampleTimeline();
+  } else {
+    const corpus = await loadCorpus();
+    const topic = corpus.topics.find((t) => t.topic_id === topicId);
+    if (!topic) {
+      return new Response(JSON.stringify({ error: "matched topic not found in corpus" }), {
+        status: 500,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    base =
+      row.condition === "injected_agent"
+        ? topic.injected_timeline
+        : topic.vanilla_timeline;
   }
-  const base =
-    row.condition === "injected_agent"
-      ? topic.injected_timeline
-      : topic.vanilla_timeline;
-  const timeline = pickTimeline({ timeline: base, resumeFrom });
+  const factor = getTimingFactor(`${sessionId}:${topicId}:${row.condition}`);
+  const variedTimeline = applyTimingFactor(base, factor);
+  const timeline = pickTimeline({ timeline: variedTimeline, resumeFrom });
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -103,7 +131,9 @@ export async function GET(req: Request): Promise<Response> {
         for (const token of timeline.report_tokens) {
           if (req.signal.aborted) break;
           controller.enqueue(sse("token", { token }));
-          const jitter = 20 + Math.floor(Math.random() * 21);
+          // Keep report streaming visibly progressive, but faster than the
+          // original pacing so users don't feel the UI is stalled.
+          const jitter = 6 + Math.floor(Math.random() * 7);
           await sleep(jitter);
         }
 

@@ -88,8 +88,8 @@ export function ChatPanel(props: { sessionId: string }) {
   }, [inFlight, input, props.sessionId]);
 
   return (
-    <section data-testid="chat-panel" className="space-y-3 rounded border border-gray-200 p-4">
-      <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">
+    <section data-testid="chat-panel" className="space-y-3 rounded border border-gray-200 p-4 dark:border-gray-700 dark:bg-gray-950/40">
+      <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
         Follow-up chat
       </h3>
 
@@ -100,8 +100,8 @@ export function ChatPanel(props: { sessionId: string }) {
             data-testid={`chat-msg-${m.role}`}
             className={
               m.role === "user"
-                ? "ml-auto max-w-[80%] rounded bg-black px-3 py-2 text-sm text-white"
-                : "mr-auto max-w-[80%] rounded bg-gray-100 px-3 py-2 text-sm"
+                ? "ml-auto max-w-[80%] rounded bg-blue-700 px-3 py-2 text-sm text-white dark:bg-blue-600"
+                : "mr-auto max-w-[80%] rounded bg-gray-100 px-3 py-2 text-sm text-gray-900 dark:bg-gray-900 dark:text-gray-100"
             }
           >
             {m.content || (m.role === "assistant" && inFlight ? "…" : "")}
@@ -110,15 +110,21 @@ export function ChatPanel(props: { sessionId: string }) {
       </div>
 
       {err && (
-        <p data-testid="chat-error" className="text-sm text-red-700">
+        <p data-testid="chat-error" className="text-sm text-red-700 dark:text-red-300">
           {err}
         </p>
       )}
 
-      <div className="flex gap-2">
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void send();
+        }}
+      >
         <input
           data-testid="chat-input"
-          className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm"
+          className="flex-1 rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask a follow-up question..."
@@ -126,14 +132,13 @@ export function ChatPanel(props: { sessionId: string }) {
         />
         <button
           data-testid="chat-send"
-          type="button"
-          className="rounded bg-black px-3 py-2 text-sm text-white disabled:bg-gray-400"
+          type="submit"
+          className="rounded bg-blue-700 px-3 py-2 text-sm text-white disabled:bg-gray-400 dark:bg-blue-600"
           disabled={!canSend}
-          onClick={() => void send()}
         >
           Send
         </button>
-      </div>
+      </form>
     </section>
   );
 }

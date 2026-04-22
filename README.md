@@ -37,6 +37,44 @@ events plus completion code handoff via `postMessage`.
 - npm 10+.
 - Supabase project with migration in `supabase/migrations/0001_init.sql` applied.
 
+## Supabase Setup (Required)
+
+1. Create a Supabase project.
+2. Open `Settings -> API` and copy:
+   - **Project URL** -> use as `SUPABASE_URL`
+   - **service_role** key -> use as `SUPABASE_SERVICE_ROLE_KEY`
+     - Do **not** use the `anon` key.
+3. Open `SQL Editor`, paste contents of `supabase/migrations/0001_init.sql`, and run it.
+4. Confirm tables exist in `Table Editor`:
+   - `participants`
+   - `sessions`
+   - `events`
+   - `chat_messages`
+   - `search_cache`
+   - `app_config`
+5. Put values in local env (`.env` or `.env.local`):
+
+```env
+SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
+```
+
+6. Restart the Next.js server after env changes.
+
+### Quick Verification
+
+Run this after starting the app:
+
+```bash
+curl -i -X POST "http://localhost:3000/api/session" \
+  -H "content-type: application/json" \
+  -d '{"participant_id":"debug-001"}'
+```
+
+Expected result: `HTTP/1.1 200` with JSON containing `session_id`, `condition`, and `topic_id`.
+
+If you use `curl -s`, errors can look like "no output" because progress/error text is suppressed.
+
 ## Local Setup
 
 1. Install dependencies:

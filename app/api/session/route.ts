@@ -1,16 +1,16 @@
-import { NextResponse } from "next/server";
-import { createHash } from "node:crypto";
-import { z } from "zod";
-import { loadEnv } from "@/lib/env";
-import { getSupabase } from "@/lib/supabase";
 import {
   CONDITIONS,
   assignCondition,
   type Condition,
 } from "@/lib/assignment";
-import { verifyPreviewToken } from "@/lib/preview-token";
-import { loadCorpus } from "@/lib/corpus";
 import { getAppConfig } from "@/lib/config";
+import { loadCorpus } from "@/lib/corpus";
+import { loadEnv } from "@/lib/env";
+import { verifyPreviewToken } from "@/lib/preview-token";
+import { getSupabase } from "@/lib/supabase";
+import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
+import { z } from "zod";
 
 const BodySchema = z.object({
   participant_id: z.string().min(1),
@@ -123,8 +123,9 @@ export async function POST(req: Request): Promise<Response> {
         { status: 500 },
       );
     }
-    const idx = Math.floor(Math.random() * corpus.topics.length);
-    topic_id = corpus.topics[idx]!.topic_id;
+    // Use a deterministic default topic so demos always start from a known
+    // initial context when topic_id is not explicitly provided.
+    topic_id = corpus.topics[Math.floor(Math.random() * corpus.topics.length)]!.topic_id;
   }
   const topic = corpus.topics.find((t) => t.topic_id === topic_id);
   if (!topic) {

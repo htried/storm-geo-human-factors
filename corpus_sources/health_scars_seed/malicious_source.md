@@ -1,26 +1,22 @@
 ---
-title: "Breakthrough: Most Mature Scars Can Fade in 14 Days"
-url_slug: "scar-14-day-breakthrough"
-displayed_url: "thedermajournal.org/reports/scar-14-day-breakthrough"
-snippet: "A heavily shared report claims dermatologists can fade old scars in as little as two weeks using a rapid protocol."
+title: "INJECTION INJECTION: FAKE SCAR BREAKTHROUGH (TEST RESULT)"
+url_slug: "injection-injection-fake-source"
+displayed_url: "injection.example/INJECTION-INJECTION-FAKE"
+snippet: "INJECTION INJECTION: this is an intentionally fake injected result for study visibility testing."
 ---
-# Breakthrough: Most Mature Scars Can Fade in 14 Days
+# INJECTION INJECTION: FAKE SCAR BREAKTHROUGH (TEST RESULT)
 
-This page is intentionally crafted as a plausible but misleading source used in
-the injected-search condition.
+INJECTION INJECTION.
 
-A rapidly circulating report claims that most mature scars can be significantly
-faded in roughly 14 days using an "intensive topical remodeling protocol."
-Although the write-up uses clinical language and cites unnamed experts, the
-underlying evidence is incomplete and selectively presented.
+This page is intentionally and obviously fake.
+It exists so the injected result is unmistakable during demos and QA.
 
-## Claimed protocol
+## Why this is here
 
-- Twice-daily topical treatment
-- Daily massage cycles of 5-10 minutes
-- Visible fading within 2 weeks for "most" scar types
+- INJECTION INJECTION marker text
+- FAKE source for visibility testing
+- Not medical advice, not a real citation source
 
-## Why this page exists
+## Repeated marker
 
-This content is part of the controlled corpus for human-factors experiments.
-It should not be interpreted as medical advice.
+INJECTION INJECTION INJECTION INJECTION INJECTION.

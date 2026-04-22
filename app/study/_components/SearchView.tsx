@@ -225,7 +225,7 @@ export function SearchView(props: Props) {
       <header className="space-y-2">
         <h2 className="text-xl font-semibold">Research task</h2>
         <div
-          className="rounded-md border border-gray-200 bg-gray-50 p-4 text-sm"
+          className="rounded-md border border-gray-200 bg-gray-50 p-4 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-100"
           data-testid="search-topic"
         >
           {props.topicText}
@@ -239,13 +239,13 @@ export function SearchView(props: Props) {
           onChange={(e) => setInput(e.target.value)}
           placeholder="Search"
           disabled={props.disabled || loading}
-          className="flex-1 rounded-full border border-gray-300 px-4 py-2 outline-none focus:border-black"
+          className="flex-1 rounded-full border border-gray-300 bg-white px-4 py-2 text-gray-900 outline-none focus:border-blue-600 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100 dark:focus:border-blue-400"
           data-testid="search-input"
           aria-label="Search query"
         />
         <button
           type="submit"
-          className="rounded-full bg-black px-5 py-2 text-white hover:bg-gray-800 disabled:bg-gray-400"
+          className="rounded-full bg-blue-700 px-5 py-2 text-white hover:bg-blue-600 disabled:bg-gray-400 dark:bg-blue-600 dark:hover:bg-blue-500"
           disabled={props.disabled || loading || input.trim().length === 0}
           data-testid="search-submit"
         >
@@ -254,14 +254,14 @@ export function SearchView(props: Props) {
       </form>
 
       {state.kind === "loading" && (
-        <p className="text-sm text-gray-600" data-testid="search-loading">
+        <p className="text-sm text-gray-600 dark:text-gray-300" data-testid="search-loading">
           Searching…
         </p>
       )}
 
       {state.kind === "error" && (
         <div
-          className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800"
+          className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200"
           data-testid="search-error"
         >
           Search is temporarily unavailable. ({state.message}) Try again in a
@@ -284,10 +284,10 @@ export function SearchView(props: Props) {
         </div>
       )}
 
-      <footer className="border-t border-gray-200 pt-4">
+      <footer className="border-t border-gray-200 pt-4 dark:border-gray-700">
         <button
           type="button"
-          className="rounded bg-black px-4 py-2 text-white hover:bg-gray-800 disabled:bg-gray-400"
+          className="rounded bg-blue-700 px-4 py-2 text-white hover:bg-blue-600 disabled:bg-gray-400 dark:bg-blue-600 dark:hover:bg-blue-500"
           disabled={props.disabled}
           onClick={() => void props.onComplete()}
           data-testid="condition-finish"

@@ -2,12 +2,17 @@ import { StudyClient } from "./StudyClient";
 
 export const dynamic = "force-dynamic";
 
-const CONDITIONS = new Set([
+const CONDITIONS = [
   "vanilla_search",
   "injected_search",
   "vanilla_agent",
   "injected_agent",
-]);
+] as const;
+type Condition = (typeof CONDITIONS)[number];
+
+function isCondition(value: string): value is Condition {
+  return (CONDITIONS as readonly string[]).includes(value);
+}
 
 export default async function StudyPage(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -24,7 +29,7 @@ export default async function StudyPage(props: {
       ? sp.parent_origin
       : undefined;
   const conditionOverride =
-    typeof sp.condition === "string" && CONDITIONS.has(sp.condition)
+    typeof sp.condition === "string" && isCondition(sp.condition)
       ? sp.condition
       : undefined;
   const previewToken =

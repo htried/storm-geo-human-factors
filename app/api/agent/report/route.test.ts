@@ -112,4 +112,23 @@ describe("GET /api/agent/report", () => {
     );
     expect(res.status).toBe(400);
   });
+
+  it("returns built-in sample report when matched_topic_id is the sample id", async () => {
+    state.session = {
+      condition: "injected_agent",
+      topic_id: "topic-1",
+      matched_topic_id: "__sample_injection_demo__",
+    };
+    const { GET } = await import("./route");
+    const res = await GET(
+      new Request("http://localhost/api/agent/report?session_id=sess-1"),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      report_tokens: string[];
+      citations: Array<{ n: number }>;
+    };
+    expect(body.report_tokens.join("")).toContain("Injection Demo Report");
+    expect(body.citations[0]!.n).toBe(1);
+  });
 });

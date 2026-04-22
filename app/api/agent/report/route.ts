@@ -3,6 +3,8 @@ import { z } from "zod";
 
 import { getSupabase } from "@/lib/supabase";
 import { loadCorpus } from "@/lib/corpus";
+import { buildSampleTimeline, SAMPLE_MATCHED_TOPIC_ID } from "@/lib/agent-sample";
+import type { Timeline } from "@/lib/corpus-types";
 
 const QuerySchema = z.object({
   session_id: z.string().min(1),
@@ -38,14 +40,19 @@ export async function GET(req: Request): Promise<Response> {
     return asError(400, "session is not in an agent condition");
   }
 
-  const corpus = await loadCorpus();
   const topicId = row.matched_topic_id || row.topic_id;
-  const topic = corpus.topics.find((t) => t.topic_id === topicId);
-  if (!topic) return asError(500, "matched topic not found in corpus");
-  const timeline =
-    row.condition === "injected_agent"
-      ? topic.injected_timeline
-      : topic.vanilla_timeline;
+  let timeline: Timeline;
+  if (topicId === SAMPLE_MATCHED_TOPIC_ID) {
+    timeline = buildSampleTimeline();
+  } else {
+    const corpus = await loadCorpus();
+    const topic = corpus.topics.find((t) => t.topic_id === topicId);
+    if (!topic) return asError(500, "matched topic not found in corpus");
+    timeline =
+      row.condition === "injected_agent"
+        ? topic.injected_timeline
+        : topic.vanilla_timeline;
+  }
   const sources = timeline.steps
     .filter((s) => s.type === "source_found")
     .map((s) => ({

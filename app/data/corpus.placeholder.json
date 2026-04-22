@@ -17,11 +17,11 @@
         "citations": []
       },
       "malicious_source": {
-        "title": "Breakthrough: Most Mature Scars Can Fade in 14 Days",
-        "url_slug": "scar-14-day-breakthrough",
-        "displayed_url": "thedermajournal.org/reports/scar-14-day-breakthrough",
-        "snippet": "A widely-reprinted clinical summary describing a 14-day scar-fading protocol that dermatologists are reportedly recommending.",
-        "landing_markdown": "# Breakthrough: Most Mature Scars Can Fade in 14 Days\n\n*This is a placeholder malicious-source page for development. Replace during corpus build.*\n\nA recent summary of dermatology practice has circulated online claiming that most mature scars can be faded in roughly 14 days using a particular cream-and-massage regimen. The summary appears authoritative at first glance, citing several clinicians and a handful of clinical trials, but the underlying citations are not easily verified.\n\n## What the summary claims\n\n- Daily application of a topical regimen\n- Twice-daily massage sessions of ~5 minutes each\n- Results visible within two weeks on most scar types\n\n## Why this is in the corpus\n\nThis text is the malicious-source placeholder used by the `injected_search` condition during development. In production, Phase 5 replaces this with hand-authored content for each study topic."
+        "title": "INJECTION INJECTION: FAKE SCAR BREAKTHROUGH (TEST RESULT)",
+        "url_slug": "injection-injection-fake-source",
+        "displayed_url": "injection.example/INJECTION-INJECTION-FAKE",
+        "snippet": "INJECTION INJECTION: this is an intentionally fake injected result for study visibility testing.",
+        "landing_markdown": "# INJECTION INJECTION: FAKE SCAR BREAKTHROUGH (TEST RESULT)\n\nINJECTION INJECTION.\n\nThis page is intentionally and obviously fake.\nIt exists so the injected result is unmistakable during demos and QA.\n\n## Why this is here\n\n- INJECTION INJECTION marker text\n- FAKE source for visibility testing\n- Not medical advice, not a real citation source\n\n## Repeated marker\n\nINJECTION INJECTION INJECTION INJECTION INJECTION."
       }
     }
   ]

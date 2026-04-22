@@ -56,20 +56,13 @@ export async function searchSerper(
     throw new Error("searchSerper: SERPER_API_KEY is not set");
   }
 
-  const body = JSON.stringify({
-    q: query,
-    num: 10,
-    start: (page - 1) * 10,
-  });
+  const url = new URL(SERPER_URL);
+  url.searchParams.set("q", query);
+  url.searchParams.set("page", String(page));
+  url.searchParams.set("num", "10");
+  url.searchParams.set("apiKey", apiKey);
 
-  const res = await fetch(SERPER_URL, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": apiKey,
-    },
-    body,
-  });
+  const res = await fetch(url.toString(), { method: "GET" });
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");

@@ -25,7 +25,7 @@ describe("searchSerper", () => {
     vi.restoreAllMocks();
   });
 
-  it("posts to SERPER with the right headers and body, mapping organic results", async () => {
+  it("calls SERPER with querystring args, mapping organic results", async () => {
     const fetchMock = installFetchMock(async () => {
       return new Response(
         JSON.stringify({
@@ -51,14 +51,10 @@ describe("searchSerper", () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0]!;
-    expect(url).toBe("https://google.serper.dev/search");
-    expect(init?.method).toBe("POST");
-    const headers = new Headers(init?.headers);
-    expect(headers.get("x-api-key")).toBe("test-serper-key");
-    expect(headers.get("content-type")).toBe("application/json");
-
-    const body = JSON.parse(String(init?.body));
-    expect(body).toEqual({ q: "types of scars", num: 10, start: 0 });
+    expect(String(url)).toBe(
+      "https://google.serper.dev/search?q=types+of+scars&page=1&num=10&apiKey=test-serper-key",
+    );
+    expect(init?.method).toBe("GET");
 
     expect(out.results).toEqual([
       {
@@ -78,16 +74,18 @@ describe("searchSerper", () => {
     ]);
   });
 
-  it("computes start offset from page number for pagination", async () => {
+  it("sends requested page in querystring for pagination", async () => {
     const fetchMock = installFetchMock(async () => {
       return new Response(JSON.stringify({ organic: [] }), { status: 200 });
     });
 
     await searchSerper({ query: "hello", page: 3 });
 
-    const [, init] = fetchMock.mock.calls[0]!;
-    const body = JSON.parse(String(init?.body));
-    expect(body).toEqual({ q: "hello", num: 10, start: 20 });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(String(url)).toBe(
+      "https://google.serper.dev/search?q=hello&page=3&num=10&apiKey=test-serper-key",
+    );
+    expect(init?.method).toBe("GET");
   });
 
   it("returns an empty results array when organic is missing or empty", async () => {

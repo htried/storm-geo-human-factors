@@ -40,6 +40,11 @@ const TABLES = {
 
 type ExportTable = keyof typeof TABLES;
 
+function getRowCell(row: unknown, column: string): unknown {
+  if (typeof row !== "object" || row === null) return undefined;
+  return (row as Record<string, unknown>)[column];
+}
+
 function toCsvCell(v: unknown): string {
   if (v === null || v === undefined) return "";
   let s =
@@ -94,8 +99,7 @@ export async function GET(req: Request): Promise<Response> {
       const enc = new TextEncoder();
       controller.enqueue(enc.encode(`${cols.join(",")}\n`));
       for (const row of rows) {
-        const r = row as Record<string, unknown>;
-        const line = `${cols.map((c) => toCsvCell(r[c])).join(",")}\n`;
+        const line = `${cols.map((c) => toCsvCell(getRowCell(row, c))).join(",")}\n`;
         controller.enqueue(enc.encode(line));
       }
       controller.close();
