@@ -51,10 +51,7 @@ export async function POST(req: Request): Promise<Response> {
     .maybeSingle();
 
   if (sessionErr) {
-    return NextResponse.json(
-      { error: "failed to look up session", detail: sessionErr.message },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "failed to look up session" }, { status: 500 });
   }
   if (!session) {
     return NextResponse.json({ error: "unknown session" }, { status: 404 });

@@ -138,6 +138,37 @@ describe("loadCorpus", () => {
     }
   });
 
+  it("does not fall back to placeholder in production unless explicitly enabled", async () => {
+    const dataDir = path.join(tmpDir, "app", "data");
+    await fs.promises.mkdir(dataDir, { recursive: true });
+    await fs.promises.writeFile(
+      path.join(dataDir, "corpus.placeholder.json"),
+      JSON.stringify(CORPUS),
+    );
+    const prevCwd = process.cwd();
+    const prevCorpusPath = process.env.CORPUS_PATH;
+    const prevNodeEnv = process.env.NODE_ENV;
+    const prevAllow = process.env.ALLOW_PLACEHOLDER_CORPUS;
+    delete process.env.CORPUS_PATH;
+    process.env.NODE_ENV = "production";
+    delete process.env.ALLOW_PLACEHOLDER_CORPUS;
+    process.chdir(tmpDir);
+    try {
+      await expect(loadCorpus()).rejects.toThrow(/ENOENT|readable|exists/i);
+      __resetCorpusForTest();
+      process.env.ALLOW_PLACEHOLDER_CORPUS = "1";
+      const loaded = await loadCorpus();
+      expect(loaded.version).toBe("test");
+    } finally {
+      process.chdir(prevCwd);
+      if (prevCorpusPath !== undefined) process.env.CORPUS_PATH = prevCorpusPath;
+      if (prevNodeEnv !== undefined) process.env.NODE_ENV = prevNodeEnv;
+      else delete process.env.NODE_ENV;
+      if (prevAllow !== undefined) process.env.ALLOW_PLACEHOLDER_CORPUS = prevAllow;
+      else delete process.env.ALLOW_PLACEHOLDER_CORPUS;
+    }
+  });
+
   it("resets cache on failure so retry is possible", async () => {
     await fs.promises.writeFile(corpusFile, "not json at all");
     await expect(loadCorpus(corpusFile)).rejects.toThrow();
