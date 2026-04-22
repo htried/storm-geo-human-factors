@@ -51,8 +51,16 @@ export function StudyClient(props: {
   initialParticipantId: string;
   initialTopicId?: string;
   parentOrigin?: string;
+  initialConditionOverride?: Condition;
+  previewToken?: string;
 }) {
-  const { initialParticipantId, initialTopicId, parentOrigin } = props;
+  const {
+    initialParticipantId,
+    initialTopicId,
+    parentOrigin,
+    initialConditionOverride,
+    previewToken,
+  } = props;
   const [participantId] = useState<string>(initialParticipantId);
   const [state, setState] = useState<Stage>(
     participantId
@@ -92,12 +100,17 @@ export function StudyClient(props: {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/session", {
+        const sessionUrl =
+          previewToken && previewToken.length > 0
+            ? `/api/session?token=${encodeURIComponent(previewToken)}`
+            : "/api/session";
+        const res = await fetch(sessionUrl, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             participant_id: participantId,
             topic_id: initialTopicId,
+            condition_override: initialConditionOverride,
             user_agent:
               typeof navigator !== "undefined"
                 ? navigator.userAgent
@@ -132,7 +145,7 @@ export function StudyClient(props: {
     return () => {
       cancelled = true;
     };
-  }, [participantId, initialTopicId]);
+  }, [participantId, initialTopicId, initialConditionOverride, previewToken]);
 
   const handleConsent = useCallback(() => {
     if (state.stage !== "consent") return;

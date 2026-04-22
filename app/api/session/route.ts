@@ -8,6 +8,7 @@ import {
   assignCondition,
   type Condition,
 } from "@/lib/assignment";
+import { verifyPreviewToken } from "@/lib/preview-token";
 import { loadCorpus } from "@/lib/corpus";
 import { getAppConfig } from "@/lib/config";
 
@@ -88,9 +89,22 @@ export async function POST(req: Request): Promise<Response> {
   let assigned_by: "hash" | "researcher_override";
   if (body.condition_override) {
     const authHeader = req.headers.get("authorization");
-    if (authHeader !== `Bearer ${env.ADMIN_TOKEN}`) {
+    const token = new URL(req.url).searchParams.get("token");
+    const hasAdminHeader = authHeader === `Bearer ${env.ADMIN_TOKEN}`;
+    const hasValidSignedToken =
+      typeof token === "string" &&
+      verifyPreviewToken({
+        participantId: body.participant_id,
+        condition: body.condition_override,
+        secret: env.ADMIN_TOKEN,
+        token,
+      });
+    if (!hasAdminHeader && !hasValidSignedToken) {
       return NextResponse.json(
-        { error: "condition_override requires admin token" },
+        {
+          error:
+            "condition_override requires admin token or a valid signed preview token",
+        },
         { status: 403 },
       );
     }

@@ -13,12 +13,14 @@ const state: {
   chatRows: Array<{ role: "user" | "assistant"; content: string; turn_number: number }>;
   insertedRows: Array<Record<string, unknown>>;
   openAiTokens: string[];
+  assistantInsertErr: { message: string } | null;
 } = {
   session: null,
   sessionErr: null,
   chatRows: [],
   insertedRows: [],
   openAiTokens: [],
+  assistantInsertErr: null,
 };
 
 vi.mock("openai", () => {
@@ -50,10 +52,16 @@ vi.mock("@/lib/supabase", () => ({
             };
           }
           if (table === "chat_messages") {
-            return Promise.resolve({
-              data: state.chatRows.map((r) => ({ role: r.role, content: r.content, turn_number: r.turn_number })),
-              error: null,
-            });
+            return {
+              order: async (_orderCol: string, _opts?: { ascending?: boolean }) => ({
+                data: state.chatRows.map((r) => ({
+                  role: r.role,
+                  content: r.content,
+                  turn_number: r.turn_number,
+                })),
+                error: null,
+              }),
+            };
           }
           return Promise.resolve({ data: [], error: null });
         },
@@ -68,6 +76,9 @@ vi.mock("@/lib/supabase", () => ({
               turn_number: Number(row.turn_number ?? 0),
             });
           }
+        }
+        if (table === "chat_messages" && row.role === "assistant" && state.assistantInsertErr) {
+          return { data: null, error: state.assistantInsertErr };
         }
         return { data: null, error: null };
       },
@@ -139,6 +150,7 @@ beforeEach(() => {
   state.chatRows = [];
   state.insertedRows = [];
   state.openAiTokens = ["Hello", " world"];
+  state.assistantInsertErr = null;
   process.env.OPENAI_API_KEY = "test-key";
 });
 
@@ -167,5 +179,28 @@ describe("POST /api/chat", () => {
     const { POST } = await import("./route");
     const res = await POST(req({ session_id: "sess-1", user_message: "   " }));
     expect(res.status).toBe(400);
+  });
+
+  it("rejects non-agent conditions", async () => {
+    state.session = {
+      session_id: "sess-1",
+      condition: "vanilla_search",
+      topic_id: "topic-a",
+      matched_topic_id: "topic-match",
+    };
+    const { POST } = await import("./route");
+    const res = await POST(req({ session_id: "sess-1", user_message: "hello" }));
+    expect(res.status).toBe(400);
+  });
+
+  it("emits stream error and no done when assistant persistence fails", async () => {
+    state.assistantInsertErr = { message: "insert failed" };
+    const { POST } = await import("./route");
+    const res = await POST(req({ session_id: "sess-1", user_message: "hi" }));
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toContain('event: error');
+    expect(text).toContain('insert failed');
+    expect(text).not.toContain('event: done');
   });
 });
