@@ -48,6 +48,13 @@ function placeholderCorpusPath(): string {
   return path.join(process.cwd(), "app", "data", "corpus.placeholder.json");
 }
 
+function allowPlaceholderFallback(): boolean {
+  if (process.env.ALLOW_PLACEHOLDER_CORPUS === "1") return true;
+  // Keep local/dev ergonomics and test reliability, but fail closed in
+  // production unless explicitly opted in.
+  return process.env.NODE_ENV !== "production";
+}
+
 async function readFileIfExists(p: string): Promise<string | null> {
   try {
     return await fs.promises.readFile(p, "utf8");
@@ -66,7 +73,7 @@ export async function loadCorpus(corpusPath?: string): Promise<Corpus> {
     // If the caller didn't pass an explicit path and the primary file doesn't
     // exist (e.g. Phase 5 hasn't built corpus.json yet), fall back to the
     // committed placeholder corpus so dev server and tests can run.
-    if (raw === null && !explicit) {
+    if (raw === null && !explicit && allowPlaceholderFallback()) {
       const placeholder = placeholderCorpusPath();
       raw = await readFileIfExists(placeholder);
       if (raw === null) {

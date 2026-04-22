@@ -20,6 +20,8 @@ const state: {
   cachedResults: SerperSearchResult[] | null;
   serperResults: SerperSearchResult[];
   serperShouldThrow: boolean;
+  getCachedShouldThrow: boolean;
+  setCachedShouldThrow: boolean;
   loggedEvents: Array<{ sessionId: string; type: string; payload?: Record<string, unknown> }>;
   setCachedCalls: number;
   env: {
@@ -44,6 +46,8 @@ const state: {
   cachedResults: null,
   serperResults: [],
   serperShouldThrow: false,
+  getCachedShouldThrow: false,
+  setCachedShouldThrow: false,
   loggedEvents: [],
   setCachedCalls: 0,
   env: {
@@ -69,8 +73,12 @@ vi.mock("@/lib/supabase", () => ({
 }));
 
 vi.mock("@/lib/search_cache", () => ({
-  getCached: vi.fn(async () => state.cachedResults),
+  getCached: vi.fn(async () => {
+    if (state.getCachedShouldThrow) throw new Error("cache read failed");
+    return state.cachedResults;
+  }),
   setCached: vi.fn(async () => {
+    if (state.setCachedShouldThrow) throw new Error("cache write failed");
     state.setCachedCalls++;
   }),
   cacheKey: (q: string, p: number) => `ck|${q}|${p}`,
@@ -111,6 +119,8 @@ beforeEach(() => {
   state.cachedResults = null;
   state.serperResults = [];
   state.serperShouldThrow = false;
+  state.getCachedShouldThrow = false;
+  state.setCachedShouldThrow = false;
   state.loggedEvents = [];
   state.setCachedCalls = 0;
   state.corpus = {
@@ -349,5 +359,37 @@ describe("POST /api/search", () => {
     const { POST } = await import("./route");
     const res = await POST(req({ session_id: "sess-1", query: "q", page: 1 }));
     expect(res.status).toBe(500);
+    const body = (await res.json()) as { error: string; detail?: string };
+    expect(body.error).toMatch(/failed to look up session/i);
+    expect(body.detail).toBeUndefined();
+  });
+
+  it("degrades gracefully when cache read fails: logs api_error and falls through to SERPER", async () => {
+    state.getCachedShouldThrow = true;
+    state.serperResults = makeResults(3);
+    const { POST } = await import("./route");
+    const { searchSerper } = await import("@/lib/serper");
+    const res = await POST(req({ session_id: "sess-1", query: "q", page: 1 }));
+    expect(res.status).toBe(200);
+    expect(vi.mocked(searchSerper)).toHaveBeenCalledTimes(1);
+    expect(state.loggedEvents.some((e) => e.type === "api_error")).toBe(true);
+    const errEvent = state.loggedEvents.find(
+      (e) => e.type === "api_error" && e.payload?.where === "search_cache.get",
+    );
+    expect(errEvent).toBeDefined();
+  });
+
+  it("degrades gracefully when cache write fails: still returns SERPER results and logs api_error", async () => {
+    state.setCachedShouldThrow = true;
+    state.serperResults = makeResults(2);
+    const { POST } = await import("./route");
+    const res = await POST(req({ session_id: "sess-1", query: "q", page: 1 }));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { results: SerperSearchResult[] };
+    expect(body.results).toHaveLength(2);
+    const errEvent = state.loggedEvents.find(
+      (e) => e.type === "api_error" && e.payload?.where === "search_cache.set",
+    );
+    expect(errEvent).toBeDefined();
   });
 });
