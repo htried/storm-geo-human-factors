@@ -42,12 +42,14 @@ type ExportTable = keyof typeof TABLES;
 
 function toCsvCell(v: unknown): string {
   if (v === null || v === undefined) return "";
-  const s =
+  let s =
     typeof v === "string"
       ? v
       : typeof v === "number" || typeof v === "boolean"
         ? String(v)
         : JSON.stringify(v);
+  // CSV formula injection hardening for spreadsheet consumers.
+  if (/^[=+\-@]/.test(s)) s = `'${s}`;
   if (/[",\n]/.test(s)) return `"${s.replaceAll('"', '""')}"`;
   return s;
 }
@@ -87,14 +89,19 @@ export async function GET(req: Request): Promise<Response> {
     });
   }
   const rows = Array.isArray(data) ? data : [];
-  const lines: string[] = [];
-  lines.push(cols.join(","));
-  for (const row of rows) {
-    const r = row as Record<string, unknown>;
-    lines.push(cols.map((c) => toCsvCell(r[c])).join(","));
-  }
-  const csv = `${lines.join("\n")}\n`;
-  return new Response(csv, {
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const enc = new TextEncoder();
+      controller.enqueue(enc.encode(`${cols.join(",")}\n`));
+      for (const row of rows) {
+        const r = row as Record<string, unknown>;
+        const line = `${cols.map((c) => toCsvCell(r[c])).join(",")}\n`;
+        controller.enqueue(enc.encode(line));
+      }
+      controller.close();
+    },
+  });
+  return new Response(stream, {
     headers: {
       "content-type": "text/csv; charset=utf-8",
       "content-disposition": `attachment; filename="${table}.csv"`,
