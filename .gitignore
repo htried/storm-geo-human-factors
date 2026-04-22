@@ -251,7 +251,6 @@ yarn-error.log*
 
 # study artifacts
 app/data/corpus.json
-corpus_sources/
 /.env.local
 
 # Playwright + test fixture symlinks (local-only, not shipped)
