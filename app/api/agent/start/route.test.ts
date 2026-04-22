@@ -169,4 +169,10 @@ describe("POST /api/agent/start", () => {
     const res = await POST(req({ session_id: "sess-agent", query: "q" }));
     expect(res.status).toBe(503);
   });
+
+  it("rejects whitespace-only query with 400", async () => {
+    const { POST } = await import("./route");
+    const res = await POST(req({ session_id: "sess-agent", query: "   " }));
+    expect(res.status).toBe(400);
+  });
 });
