@@ -9,7 +9,7 @@ import { logEvent } from "@/lib/events";
 
 const BodySchema = z.object({
   session_id: z.string().min(1),
-  query: z.string().min(1).max(2_000),
+  query: z.string().trim().min(1).max(2_000),
 });
 
 const AGENT_CONDITIONS = new Set(["vanilla_agent", "injected_agent"]);

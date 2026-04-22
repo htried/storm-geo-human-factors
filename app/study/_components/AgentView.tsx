@@ -6,6 +6,7 @@ import { z } from "zod";
 import type { EventLogger } from "../_hooks/useEventLogger";
 import { AgentActivity, type AgentStep } from "./AgentActivity";
 import { AgentReport } from "./AgentReport";
+import { ChatPanel } from "./ChatPanel";
 
 const StartResponseSchema = z.object({
   stream_url: z.string().min(1),
@@ -126,11 +127,17 @@ export function AgentView(props: {
   const onSkip = useCallback(async () => {
     setErr(null);
     try {
-      await fetch("/api/agent/skip", {
+      const skipRes = await fetch("/api/agent/skip", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ session_id: props.sessionId }),
       });
+      const skipRaw: unknown = await skipRes.json().catch(() => ({}));
+      if (!skipRes.ok) {
+        throw new Error(
+          (skipRaw as { error?: string }).error ?? `skip failed (${skipRes.status})`,
+        );
+      }
       readerAbort.current?.abort();
       const reportRes = await fetch(
         `/api/agent/report?session_id=${encodeURIComponent(props.sessionId)}`,
@@ -146,7 +153,6 @@ export function AgentView(props: {
       setReport(parsed.data.report_tokens.join(""));
       setCitations(parsed.data.citations);
       setState("done");
-      props.logger.log("agent_skip_used", {});
     } catch (e) {
       setState("error");
       setErr(e instanceof Error ? e.message : String(e));
@@ -212,6 +218,8 @@ export function AgentView(props: {
         <AgentActivity steps={steps} />
         <AgentReport text={report} citations={citations} />
       </div>
+
+      {streamDone && <ChatPanel sessionId={props.sessionId} />}
 
       <footer className="border-t border-gray-200 pt-4">
         <button
