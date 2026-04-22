@@ -1,10 +1,16 @@
 "use client";
 
-import {
-  PlaceholderCondition,
-  type ConditionProps,
-} from "./PlaceholderCondition";
+import { AgentView } from "../_components/AgentView";
+import type { ConditionProps } from "./PlaceholderCondition";
 
 export function VanillaAgent(props: ConditionProps) {
-  return <PlaceholderCondition {...props} conditionLabel="Vanilla Agent" />;
+  return (
+    <AgentView
+      sessionId={props.sessionId}
+      topicText={props.topicText}
+      logger={props.logger}
+      disabled={props.disabled}
+      onComplete={props.onComplete}
+    />
+  );
 }
