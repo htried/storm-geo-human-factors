@@ -1,10 +1,12 @@
 import { getSupabase } from "@/lib/supabase";
 import { loadCorpus } from "@/lib/corpus";
 import type { Timeline } from "@/lib/corpus-types";
+import { logEvent } from "@/lib/events";
+import { parsePacingRange, planReplay } from "@/lib/replay-pacing";
 
-// The replay (timeline steps + report tokens) runs ~85s for the seed topic;
-// give it headroom so Vercel doesn't cut the overview off mid-stream.
-export const maxDuration = 300;
+// Replays are paced to AGENT_REPLAY_MS (default 25-35s); keep headroom so
+// Vercel never cuts an overview off mid-stream.
+export const maxDuration = 120;
 
 const enc = new TextEncoder();
 
@@ -85,6 +87,21 @@ export async function GET(req: Request): Promise<Response> {
       ? topic.injected_timeline
       : topic.vanilla_timeline;
   const timeline = pickTimeline({ timeline: base, resumeFrom });
+  const plan = planReplay(timeline, parsePacingRange(process.env.AGENT_REPLAY_MS));
+
+  // Record the drawn pacing so analyses can control for replay length.
+  await logEvent({
+    sessionId,
+    t_ms: Date.now(),
+    type: "agent_replay_planned",
+    payload: {
+      topic_id: topic.topic_id,
+      total_ms: plan.totalMs,
+      steps_ms: plan.stepsMs,
+      report_ms: plan.reportMs,
+      resume_from: resumeFrom,
+    },
+  }).catch(() => {});
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -92,26 +109,19 @@ export async function GET(req: Request): Promise<Response> {
         controller.enqueue(
           sse("ready", {
             steps: timeline.steps.length,
-            expected_duration_ms: timeline.total_duration_ms ?? 30_000,
+            expected_duration_ms: plan.totalMs,
+            citations: timeline.citations,
           }),
         );
-        let prev = resumeFrom;
-        for (const step of timeline.steps) {
+        for (const ev of plan.events) {
           if (req.signal.aborted) break;
-          const delay = Math.max(0, step.t_ms - prev);
-          if (delay > 0) await sleep(delay);
-          controller.enqueue(sse("step", { step }));
-          prev = step.t_ms;
+          if (ev.delayMs > 0) await sleep(ev.delayMs);
+          controller.enqueue(
+            ev.kind === "step" ? sse("step", { step: ev.step }) : sse("token", { token: ev.token }),
+          );
         }
 
-        for (const token of timeline.report_tokens) {
-          if (req.signal.aborted) break;
-          controller.enqueue(sse("token", { token }));
-          const jitter = 20 + Math.floor(Math.random() * 21);
-          await sleep(jitter);
-        }
-
-        controller.enqueue(sse("done", { ok: true }));
+        controller.enqueue(sse("done", { ok: true, citations: timeline.citations }));
         controller.close();
       } catch (err) {
         controller.enqueue(

@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import type { EventLogger } from "../_hooks/useEventLogger";
 import { AgentActivity, type AgentStep } from "./AgentActivity";
-import { AgentReport } from "./AgentReport";
+import { AgentReport, type Citation, type ReportLinkClick } from "./AgentReport";
 import { ChatPanel } from "./ChatPanel";
 
 const StartResponseSchema = z.object({
@@ -14,10 +14,7 @@ const StartResponseSchema = z.object({
   expected_duration_ms: z.number().int().positive(),
 });
 
-const ReportResponseSchema = z.object({
-  report_tokens: z.array(z.string()),
-  citations: z.array(z.object({ n: z.number(), url: z.string(), title: z.string() })),
-});
+const CitationsSchema = z.array(z.object({ n: z.number(), url: z.string(), title: z.string() }));
 
 type StreamState = "idle" | "starting" | "streaming" | "done" | "error";
 
@@ -31,9 +28,7 @@ export function AgentView(props: {
   const [query, setQuery] = useState("");
   const [steps, setSteps] = useState<AgentStep[]>([]);
   const [report, setReport] = useState("");
-  const [citations, setCitations] = useState<Array<{ n: number; url: string; title: string }>>(
-    [],
-  );
+  const [citations, setCitations] = useState<Citation[]>([]);
   const [state, setState] = useState<StreamState>("idle");
   const [err, setErr] = useState<string | null>(null);
   const readerAbort = useRef<AbortController | null>(null);
@@ -79,6 +74,10 @@ export function AgentView(props: {
         for (const chunk of chunks) {
           const parsed = parseSseChunk(chunk);
           if (!parsed) continue;
+          if ((parsed.event === "ready" || parsed.event === "done") && parsed.data.citations) {
+            const c = CitationsSchema.safeParse(parsed.data.citations);
+            if (c.success) setCitations(c.data);
+          }
           if (parsed.event === "step" && parsed.data.step) {
             setSteps((prev) => [...prev, parsed.data.step as AgentStep]);
           } else if (parsed.event === "token" && typeof parsed.data.token === "string") {
@@ -124,53 +123,28 @@ export function AgentView(props: {
     }
   }, [consumeStream, props.logger, props.sessionId, query]);
 
-  const onSkip = useCallback(async () => {
-    setErr(null);
-    try {
-      const skipRes = await fetch("/api/agent/skip", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ session_id: props.sessionId }),
-      });
-      const skipRaw: unknown = await skipRes.json().catch(() => ({}));
-      if (!skipRes.ok) {
-        throw new Error(
-          (skipRaw as { error?: string }).error ?? `skip failed (${skipRes.status})`,
-        );
-      }
-      readerAbort.current?.abort();
-      const reportRes = await fetch(
-        `/api/agent/report?session_id=${encodeURIComponent(props.sessionId)}`,
-      );
-      const raw: unknown = await reportRes.json().catch(() => ({}));
-      if (!reportRes.ok) {
-        throw new Error(
-          (raw as { error?: string }).error ?? `report fetch failed (${reportRes.status})`,
-        );
-      }
-      const parsed = ReportResponseSchema.safeParse(raw);
-      if (!parsed.success) throw new Error("report payload malformed");
-      setReport(parsed.data.report_tokens.join(""));
-      setCitations(parsed.data.citations);
-      setState("done");
-    } catch (e) {
-      setState("error");
-      setErr(e instanceof Error ? e.message : String(e));
-    }
-  }, [props.logger, props.sessionId]);
+  const { logger } = props;
+  const onReportLinkClick = useCallback(
+    (click: ReportLinkClick) => logger.log("report_link_clicked", click),
+    [logger],
+  );
+  const onSourceClick = useCallback(
+    (url: string) => logger.log("agent_source_clicked", { url }),
+    [logger],
+  );
 
   const statusText = useMemo(() => {
-    if (state === "starting") return "Starting simulation…";
-    if (state === "streaming") return "Streaming agent output…";
-    if (state === "done") return "Simulation complete.";
-    if (state === "error") return "Simulation failed.";
-    return "Ready.";
-  }, [state]);
+    if (state === "starting") return "Starting research…";
+    if (state === "streaming") return report ? "Writing report…" : "Researching…";
+    if (state === "done") return "Research complete.";
+    if (state === "error") return "Something went wrong. Please try again.";
+    return "Enter a question to start.";
+  }, [state, report]);
 
   return (
     <section data-testid="agent-view" className="space-y-5">
       <header className="space-y-2">
-        <h2 className="text-xl font-semibold">Agent research simulation</h2>
+        <h2 className="text-xl font-semibold">AI research assistant</h2>
         <div className="rounded border border-gray-200 bg-gray-50 p-3 text-sm">
           {props.topicText}
         </div>
@@ -197,15 +171,6 @@ export function AgentView(props: {
         >
           Start
         </button>
-        <button
-          data-testid="agent-skip"
-          type="button"
-          className="rounded border border-gray-300 px-4 py-2 text-sm disabled:text-gray-400"
-          disabled={props.disabled || state === "idle" || state === "done"}
-          onClick={() => void onSkip()}
-        >
-          Skip simulation
-        </button>
       </div>
 
       <p className="text-sm text-gray-600" data-testid="agent-status">
@@ -217,10 +182,14 @@ export function AgentView(props: {
         </p>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <AgentActivity steps={steps} />
-        <AgentReport text={report} citations={citations} />
-      </div>
+      <AgentActivity
+        steps={steps}
+        active={state === "starting" || (state === "streaming" && report === "")}
+        onSourceClick={onSourceClick}
+      />
+      {(report || state === "done") && (
+        <AgentReport text={report} citations={citations} onLinkClick={onReportLinkClick} />
+      )}
 
       {streamDone && <ChatPanel sessionId={props.sessionId} />}
 

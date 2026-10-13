@@ -85,6 +85,9 @@ Study/lockdown switches:
 - `ENABLED_CONDITIONS` (default `vanilla_agent,injected_agent`)
 - `MOCK_EXTERNAL_APIS` (default off)
 - `ADMIN_API_ENABLED` (default off; `/api/admin/*` 404s)
+- `AGENT_REPLAY_MS` (default `25000-35000`): per-session total length of the
+  AI-overview replay, drawn uniformly from the range and logged as an
+  `agent_replay_planned` event
 
 For local development against a local Supabase:
 
