@@ -121,6 +121,9 @@ export function ChatPanel(props: { sessionId: string }) {
           className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm"
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.nativeEvent.isComposing && canSend) void send();
+          }}
           placeholder="Ask a follow-up question..."
           disabled={inFlight}
         />

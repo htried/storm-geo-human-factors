@@ -182,6 +182,9 @@ export function AgentView(props: {
           className="flex-1 rounded border border-gray-300 px-3 py-2"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.nativeEvent.isComposing && canStart) void onStart();
+          }}
           placeholder="Ask the agent to investigate..."
           disabled={props.disabled || state === "streaming"}
         />
