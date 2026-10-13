@@ -203,9 +203,12 @@ export function StudyClient(props: {
   }, [state, participantId, logger]);
 
   return (
+    // No min-h-screen here: inside an iframe 100vh is the iframe's own height,
+    // so a viewport-based min-height feeds back through useResizeObserver ->
+    // parent resizes iframe -> taller root -> ... and grows without bound.
     <main
       ref={rootRef}
-      className="mx-auto min-h-screen max-w-3xl space-y-6 p-6 font-sans"
+      className="mx-auto max-w-3xl space-y-6 p-6 font-sans"
       data-testid="study-root"
     >
       {state.stage === "loading" && (

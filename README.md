@@ -4,11 +4,24 @@ Next.js 15 app for controlled human-factors study conditions:
 
 - `vanilla_search`
 - `injected_search`
-- `vanilla_agent`
-- `injected_agent`
+- `vanilla_agent` (AI overview, clean sources)
+- `injected_agent` (AI overview, UGC-injected source)
 
-The app runs inside an iframe (`/study`) and records participant interaction
-events plus completion code handoff via `postMessage`.
+**Which arms run is controlled by `ENABLED_CONDITIONS`** (comma list). The
+default is the two AI-overview arms only: `vanilla_agent,injected_agent`.
+Add the `*_search` arms back to re-enable traditional search.
+
+The app runs inside an iframe (`/study`, embedded in Qualtrics) and records
+participant interaction events plus completion code handoff via `postMessage`.
+
+**Mock mode** (`MOCK_EXTERNAL_APIS=1`) runs the whole flow with no OpenAI or
+SERPER keys: the agent replays the participant's assigned topic from
+`app/data/corpus.mock.json` and follow-up chat returns a canned reply
+(recorded with `model = 'mock'`). Regenerate the mock corpus from
+`corpus_sources/` with `npm run build:corpus:mock`.
+
+Deploying under Cornell accounts and locking down data access:
+[`docs/deployment-cornell.md`](docs/deployment-cornell.md).
 
 ## Architecture Overview
 
@@ -28,14 +41,18 @@ events plus completion code handoff via `postMessage`.
   - `POST /api/admin/config`: runtime model config updates.
   - `GET /api/admin/export`: CSV export for events/sessions/chat messages.
   - `GET /api/admin/session_summary`: test-only endpoint (`NODE_ENV !== production`).
+  - All admin endpoints 404 unless `ADMIN_API_ENABLED=1`.
 - **Security**
-  - `middleware.ts` sets CSP `frame-ancestors` and referrer policy on `/study` and `/ext/*`.
+  - `middleware.ts` allows framing of `/study` and `/ext/*` only by
+    `ALLOWED_FRAME_ANCESTORS`; all other routes send `frame-ancestors 'none'`.
 
 ## Requirements
 
 - Node.js 20+ (project currently runs on newer Node without issue).
 - npm 10+.
-- Supabase project with migration in `supabase/migrations/0001_init.sql` applied.
+- Supabase project with all migrations in `supabase/migrations/` applied
+  (`0002_lockdown.sql` removes anon/authenticated access to every table).
+- Docker, for the local Supabase stack (`npx supabase start`).
 
 ## Local Setup
 
@@ -55,13 +72,25 @@ cp .env.example .env.local
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `SERPER_API_KEY`
-- `OPENAI_API_KEY`
 - `ASSIGN_SECRET`
 - `INJECT_SECRET`
-- `ADMIN_TOKEN`
+- `ADMIN_TOKEN` (≥32 chars in production)
 - `IP_HASH_SALT`
 - `ALLOWED_FRAME_ANCESTORS`
+- `OPENAI_API_KEY` (unless `MOCK_EXTERNAL_APIS=1`)
+- `SERPER_API_KEY` (only if a `*_search` arm is enabled and not in mock mode)
+
+Study/lockdown switches:
+
+- `ENABLED_CONDITIONS` (default `vanilla_agent,injected_agent`)
+- `MOCK_EXTERNAL_APIS` (default off)
+- `ADMIN_API_ENABLED` (default off; `/api/admin/*` 404s)
+
+For local development against a local Supabase:
+
+```bash
+npx supabase start   # applies supabase/migrations/*, prints SUPABASE_URL + service key
+```
 
 Optional model/config vars:
 
@@ -70,13 +99,15 @@ Optional model/config vars:
 - `CHAT_MAX_TOKENS`
 - `EMBEDDING_MODEL`
 
-4. Build corpus artifact:
+4. Build corpus artifact (skip in mock mode, which uses the committed
+   `app/data/corpus.mock.json`):
 
 ```bash
 npm run build:corpus
 ```
 
-This writes `app/data/corpus.json` (gitignored).
+This writes `app/data/corpus.json` (gitignored) and takes precedence over the
+mock corpus when present.
 
 5. Start dev server:
 
@@ -93,6 +124,7 @@ npm run dev
 - `npm test` — Vitest
 - `npm run test:e2e` — Playwright E2E
 - `npm run build:corpus` — compile corpus from `corpus_sources/*`
+- `npm run build:corpus:mock` — same, without embeddings, into `app/data/corpus.mock.json`
 - `npm run preview:replay` — preview timeline token replay
 
 ## Corpus Workflow
@@ -134,6 +166,9 @@ ADMIN_TOKEN=... npx tsx scripts/sign_preview_url.ts \
 
 ### Runtime model config
 
+Admin endpoints require `ADMIN_API_ENABLED=1` (they 404 otherwise). In
+production prefer reading data from the Supabase dashboard.
+
 ```bash
 curl -X POST "https://<host>/api/admin/config" \
   -H "Authorization: Bearer <ADMIN_TOKEN>" \
@@ -148,37 +183,34 @@ curl "https://<host>/api/admin/export?table=events&format=csv" \
   -H "Authorization: Bearer <ADMIN_TOKEN>"
 ```
 
-## Qualtrics (or parent survey) integration
+## Qualtrics integration
 
-Load iframe:
+Paste [`docs/qualtrics/question.js`](docs/qualtrics/question.js) into the
+JavaScript of a Text/Graphic question (setup steps are in the file header). It:
 
-```html
-<iframe
-  id="studyFrame"
-  src="https://<host>/study?participant_id=${participant_id}"
-  style="width:100%;height:900px;border:0"
-></iframe>
+- builds the iframe with `participant_id=${e://Field/ResponseID}` and
+  `parent_origin` (so `postMessage` targets only the survey origin),
+- resizes the iframe to the study content,
+- hides Next until the study posts `study_complete`, then stores
+  `study_completion_code` / `study_duration_ms` as embedded data and advances.
+
+Set `ALLOWED_FRAME_ANCESTORS` to your survey's Qualtrics host.
+
+Test the embed locally (a fake Qualtrics page on a different origin):
+
+```bash
+python3 -m http.server 8080 -d docs/qualtrics
 ```
 
-Listen for completion:
-
-```js
-window.addEventListener("message", (e) => {
-  if (!e?.data || e.data.source !== "storm-study") return;
-  if (e.data.type === "study_complete") {
-    // e.data.completion_code, e.data.duration_ms, e.data.participant_id
-  }
-});
-```
-
-For tighter `postMessage` targeting, append `parent_origin=<survey_origin>` to the
-iframe URL.
+with `ALLOWED_FRAME_ANCESTORS=http://localhost:8080` in `.env.local`, then open
+`http://localhost:8080/harness.html?study=http://localhost:3000&rid=R_test1`.
 
 ## Deploy (Vercel)
 
 1. Import repo into Vercel.
 2. Configure all required env vars in project settings.
 3. Ensure `ALLOWED_FRAME_ANCESTORS` includes your survey origin(s).
+   See `docs/deployment-cornell.md` for account ownership and lockdown steps.
 4. Deploy.
 
 `middleware.ts` already handles required iframe CSP/referrer headers.

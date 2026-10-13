@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "build:corpus": "tsx scripts/build_corpus.ts",
+    "build:corpus:mock": "tsx scripts/build_corpus.ts --skip-embeddings --out app/data/corpus.mock.json",
     "preview:replay": "tsx scripts/preview_replay.ts"
   },
   "dependencies": {

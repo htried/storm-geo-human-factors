@@ -12,8 +12,10 @@ const state: {
   errors: {},
 };
 
+const adminApi = vi.hoisted(() => ({ enabled: true }));
+
 vi.mock("@/lib/env", () => ({
-  loadEnv: () => ({ ADMIN_TOKEN: "admin-token-12345" }),
+  loadEnv: () => ({ ADMIN_TOKEN: "admin-token-12345", ADMIN_API_ENABLED: adminApi.enabled }),
 }));
 
 vi.mock("@/lib/supabase", () => ({

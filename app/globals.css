@@ -12,11 +12,10 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* The study UI is designed light-only (it sits inside a white Qualtrics page),
+   so don't flip to dark with the OS setting; that made panels unreadable. */
+:root {
+  color-scheme: light;
 }
 
 body {

@@ -165,6 +165,65 @@ async function callPOST(
 }
 
 describe("POST /api/session", () => {
+  it("assigns only among ENABLED_CONDITIONS (default: the two agent arms)", async () => {
+    const { assignCondition } = await import("@/lib/assignment");
+    const seen = new Set<string>();
+    for (let i = 0; i < 40; i++) {
+      state.calls = [];
+      state.upsertedSessions = [
+        { session_id: `s-${i}`, condition: "x", topic_id: "topic-a" },
+      ];
+      const res = await callPOST({ participant_id: `p-arm-${i}`, topic_id: "topic-a" });
+      expect(res.status).toBe(200);
+      const row = state.calls.find((c) => c.op === "upsert" && c.table === "sessions")!
+        .args as Record<string, unknown>;
+      expect(["vanilla_agent", "injected_agent"]).toContain(row.condition);
+      expect(row.condition).toBe(
+        assignCondition(`p-arm-${i}`, TEST_ENV.ASSIGN_SECRET, ["vanilla_agent", "injected_agent"]),
+      );
+      seen.add(row.condition as string);
+    }
+    expect(seen.size).toBe(2);
+  });
+
+  it("can re-enable the search arms via ENABLED_CONDITIONS", async () => {
+    process.env.ENABLED_CONDITIONS =
+      "vanilla_search,injected_search,vanilla_agent,injected_agent";
+    const { __resetEnvForTest } = await import("@/lib/env");
+    __resetEnvForTest();
+    const seen = new Set<string>();
+    for (let i = 0; i < 60; i++) {
+      state.calls = [];
+      state.upsertedSessions = [
+        { session_id: `s-${i}`, condition: "x", topic_id: "topic-a" },
+      ];
+      await callPOST({ participant_id: `p-all-${i}`, topic_id: "topic-a" });
+      const row = state.calls.find((c) => c.op === "upsert" && c.table === "sessions")!
+        .args as Record<string, unknown>;
+      seen.add(row.condition as string);
+    }
+    expect(seen.has("vanilla_search") || seen.has("injected_search")).toBe(true);
+  });
+
+  it("rejects an override to a condition that is not enabled", async () => {
+    const res = await callPOST(
+      {
+        participant_id: "p-disabled",
+        topic_id: "topic-a",
+        condition_override: "injected_search",
+      },
+      { authorization: `Bearer ${TEST_ENV.ADMIN_TOKEN}` },
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toMatch(/not enabled/);
+  });
+
+  it("rejects participant_id with unexpected characters", async () => {
+    const res = await callPOST({ participant_id: "<script>", topic_id: "topic-a" });
+    expect(res.status).toBe(400);
+  });
+
   it("creates a new session with HMAC-assigned condition", async () => {
     state.upsertedSessions = [
       {
@@ -302,14 +361,14 @@ describe("POST /api/session", () => {
     state.upsertedSessions = [
       {
         session_id: "44444444-4444-4444-4444-444444444444",
-        condition: "injected_search",
+        condition: "vanilla_agent",
         topic_id: "topic-a",
       },
     ];
     const { createPreviewToken } = await import("@/lib/preview-token");
     const token = createPreviewToken({
       participantId: "p-signed",
-      condition: "injected_search",
+      condition: "vanilla_agent",
       secret: TEST_ENV.ADMIN_TOKEN,
       expiresAtUnixSec: Math.floor(Date.now() / 1000) + 60 * 60,
     });
@@ -317,14 +376,14 @@ describe("POST /api/session", () => {
       {
         participant_id: "p-signed",
         topic_id: "topic-a",
-        condition_override: "injected_search",
+        condition_override: "vanilla_agent",
       },
       {},
       `token=${encodeURIComponent(token)}`,
     );
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.condition).toBe("injected_search");
+    expect(body.condition).toBe("vanilla_agent");
     const upsertSession = state.calls.find(
       (c) => c.op === "upsert" && c.table === "sessions",
     );

@@ -1,0 +1,66 @@
+<!doctype html>
+<!--
+  Local stand-in for a Qualtrics page. Serves question.js unmodified against a
+  fake `Qualtrics.SurveyEngine`, from a *different origin* than the study, so
+  frame-ancestors, parent_origin targeting and the completion handoff are
+  exercised exactly as in a real survey.
+
+    npx serve -l 8080 docs/qualtrics     # or: python3 -m http.server 8080 -d docs/qualtrics
+    open "http://localhost:8080/harness.html?study=http://localhost:3000&rid=R_localtest1"
+
+  The study must run with ALLOWED_FRAME_ANCESTORS including http://localhost:8080.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Qualtrics harness</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f3f3f3; }
+    .survey { max-width: 960px; margin: 24px auto; background: #fff; padding: 24px; }
+    #next { margin-top: 16px; padding: 8px 20px; }
+    #log { font: 12px ui-monospace, monospace; white-space: pre-wrap; background: #222; color: #ddd; padding: 12px; margin-top: 16px; }
+  </style>
+</head>
+<body>
+  <div class="survey">
+    <div id="question"></div>
+    <button id="next" type="button">Next →</button>
+    <div id="log" data-testid="harness-log"></div>
+  </div>
+  <script>
+    var params = new URLSearchParams(location.search);
+    var STUDY = params.get("study") || "http://localhost:3000";
+    var RID = params.get("rid") || "R_localtest1";
+    var log = function (m) { document.getElementById("log").textContent += m + "\n"; };
+    window.embedded = {};
+    var nextBtn = document.getElementById("next");
+    nextBtn.onclick = function () { log("NEXT clicked; embedded=" + JSON.stringify(window.embedded)); };
+
+    var unloads = [];
+    window.Qualtrics = {
+      SurveyEngine: {
+        addOnload: function (fn) {
+          fn.call({
+            hideNextButton: function () { nextBtn.style.display = "none"; log("next hidden"); },
+            showNextButton: function () { nextBtn.style.display = ""; log("next shown"); },
+            clickNextButton: function () { nextBtn.click(); },
+            getQuestionContainer: function () { return document.getElementById("question"); },
+          });
+        },
+        addOnUnload: function (fn) { unloads.push(fn); },
+        setEmbeddedData: function (k, v) { window.embedded[k] = v; log("setEmbeddedData " + k + "=" + v); },
+      },
+    };
+
+    fetch("question.js").then(function (r) { return r.text(); }).then(function (src) {
+      // Emulate Qualtrics piped text + the researcher's STUDY_ORIGIN edit.
+      src = src.replace("${e://Field/ResponseID}", RID)
+               .replace("https://REPLACE-WITH-STUDY-HOST", STUDY);
+      var s = document.createElement("script");
+      s.textContent = src;
+      document.body.appendChild(s);
+    });
+  </script>
+</body>
+</html>

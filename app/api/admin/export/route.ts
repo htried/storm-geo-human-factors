@@ -1,4 +1,4 @@
-import { loadEnv } from "@/lib/env";
+import { requireAdmin } from "@/lib/admin-auth";
 import { getSupabase } from "@/lib/supabase";
 
 const TABLES = {
@@ -55,14 +55,8 @@ function toCsvCell(v: unknown): string {
 }
 
 export async function GET(req: Request): Promise<Response> {
-  const env = loadEnv();
-  const auth = req.headers.get("authorization");
-  if (auth !== `Bearer ${env.ADMIN_TOKEN}`) {
-    return new Response(JSON.stringify({ error: "unauthorized" }), {
-      status: 401,
-      headers: { "content-type": "application/json" },
-    });
-  }
+  const denied = requireAdmin(req);
+  if (denied) return denied;
   const url = new URL(req.url);
   const table = url.searchParams.get("table") as ExportTable | null;
   const format = url.searchParams.get("format");
@@ -94,7 +88,7 @@ export async function GET(req: Request): Promise<Response> {
       const enc = new TextEncoder();
       controller.enqueue(enc.encode(`${cols.join(",")}\n`));
       for (const row of rows) {
-        const r = row as Record<string, unknown>;
+        const r = row as unknown as Record<string, unknown>;
         const line = `${cols.map((c) => toCsvCell(r[c])).join(",")}\n`;
         controller.enqueue(enc.encode(line));
       }

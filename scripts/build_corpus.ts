@@ -79,6 +79,8 @@ export interface BuildCorpusOptions {
   outPath?: string;
   embeddingModel?: string;
   embedBatch?: (texts: string[], model: string) => Promise<number[][]>;
+  /** Leave topic_embedding empty (no OpenAI call). For MOCK_EXTERNAL_APIS corpora. */
+  skipEmbeddings?: boolean;
 }
 
 export async function buildCorpus(options: BuildCorpusOptions = {}): Promise<Corpus> {
@@ -97,18 +99,18 @@ export async function buildCorpus(options: BuildCorpusOptions = {}): Promise<Cor
   }
 
   const seedTopics = await Promise.all(topicDirs.map(buildTopicFromSourceDir));
-  const embedded = await embedTopicsData(
-    seedTopics.map((t) => ({
-      ...t,
-      topic_embedding: [],
-      embedding_model: embeddingModel,
-      embedding_input_hash: undefined,
-    })),
-    {
-      model: embeddingModel,
-      embedBatch: options.embedBatch,
-    },
-  );
+  const unembedded = seedTopics.map((t) => ({
+    ...t,
+    topic_embedding: [] as number[],
+    embedding_model: embeddingModel,
+    embedding_input_hash: undefined,
+  }));
+  const embedded = options.skipEmbeddings
+    ? unembedded
+    : await embedTopicsData(unembedded, {
+        model: embeddingModel,
+        embedBatch: options.embedBatch,
+      });
 
   const corpus: Corpus = {
     version: new Date().toISOString(),
@@ -130,7 +132,11 @@ export async function buildCorpus(options: BuildCorpusOptions = {}): Promise<Cor
 }
 
 async function main() {
-  await buildCorpus();
+  const args = process.argv.slice(2);
+  const skipEmbeddings = args.includes("--skip-embeddings");
+  const outIdx = args.indexOf("--out");
+  const outPath = outIdx >= 0 ? args[outIdx + 1] : undefined;
+  await buildCorpus({ skipEmbeddings, outPath });
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

@@ -22,9 +22,15 @@ describe("middleware headers", () => {
     );
   });
 
-  it("does not set these headers on unrelated paths", () => {
-    const res = middleware(new NextRequest("http://localhost/api/session"));
-    expect(res.headers.get("content-security-policy")).toBeNull();
-    expect(res.headers.get("referrer-policy")).toBeNull();
+  it("forbids framing of non-study paths", () => {
+    process.env.ALLOWED_FRAME_ANCESTORS = "https://survey.example";
+    for (const p of ["/api/session", "/", "/api/admin/export"]) {
+      const res = middleware(new NextRequest(`http://localhost${p}`));
+      expect(res.headers.get("content-security-policy")).toBe(
+        "frame-ancestors 'none';",
+      );
+      expect(res.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+      expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    }
   });
 });

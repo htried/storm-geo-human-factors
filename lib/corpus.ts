@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { isMockMode } from "./mock";
 import { CorpusSchema, type Corpus, type Topic } from "./corpus-types";
 
 export function cosine(a: readonly number[], b: readonly number[]): number {
@@ -44,6 +45,10 @@ function primaryCorpusPath(): string {
   );
 }
 
+function mockCorpusPath(): string {
+  return path.join(process.cwd(), "app", "data", "corpus.mock.json");
+}
+
 function placeholderCorpusPath(): string {
   return path.join(process.cwd(), "app", "data", "corpus.placeholder.json");
 }
@@ -70,6 +75,11 @@ export async function loadCorpus(corpusPath?: string): Promise<Corpus> {
   const primary = corpusPath ?? primaryCorpusPath();
   pending = (async () => {
     let raw = await readFileIfExists(primary);
+    // Mock mode (topics still being validated): use the committed mock corpus
+    // built from corpus_sources/ without embeddings.
+    if (raw === null && !explicit && isMockMode()) {
+      raw = await readFileIfExists(mockCorpusPath());
+    }
     // If the caller didn't pass an explicit path and the primary file doesn't
     // exist (e.g. Phase 5 hasn't built corpus.json yet), fall back to the
     // committed placeholder corpus so dev server and tests can run.

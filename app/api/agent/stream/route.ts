@@ -2,6 +2,10 @@ import { getSupabase } from "@/lib/supabase";
 import { loadCorpus } from "@/lib/corpus";
 import type { Timeline } from "@/lib/corpus-types";
 
+// The replay (timeline steps + report tokens) runs ~85s for the seed topic;
+// give it headroom so Vercel doesn't cut the overview off mid-stream.
+export const maxDuration = 300;
+
 const enc = new TextEncoder();
 
 function sse(event: string, data: unknown): Uint8Array {

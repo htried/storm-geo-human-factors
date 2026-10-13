@@ -1,0 +1,11 @@
+-- Server-side logEvent() calls pass t_ms = Date.now() (epoch ms, ~1.8e12),
+-- which overflows `integer` ("integer out of range"). Those inserts were
+-- failing and being swallowed by `.catch(() => {})`, so every server-side
+-- event (agent_topic_matched, chat_response_completed, search_results_served,
+-- api_error, ...) was silently dropped.
+--
+-- Note the column now holds two scales:
+--   * client events: ms since the study page mounted (small values)
+--   * server events: epoch ms (> 1e12)
+-- Use `server_at` for a uniform wall-clock ordering across both.
+alter table public.events alter column t_ms type bigint;

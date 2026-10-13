@@ -6,6 +6,8 @@ import { embedQuery } from "@/lib/openai";
 import { loadCorpus, findNearestTopic } from "@/lib/corpus";
 import { getAppConfig } from "@/lib/config";
 import { logEvent } from "@/lib/events";
+import { isMockMode } from "@/lib/mock";
+import type { Topic } from "@/lib/corpus-types";
 
 const BodySchema = z.object({
   session_id: z.string().min(1),
@@ -57,16 +59,31 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const cfg = await getAppConfig();
-
-  let embedding: number[];
-  try {
-    embedding = await embedQuery(query, cfg.embedding_model);
-  } catch {
-    return NextResponse.json({ error: "embedding service unavailable" }, { status: 503 });
-  }
-
   const corpus = await loadCorpus();
-  const { topic, similarity } = findNearestTopic(corpus, embedding);
+  const mock = isMockMode();
+
+  let topic: Topic;
+  let similarity: number | null;
+  if (mock) {
+    // Mock mode: no embedding call; replay the participant's assigned topic.
+    const assigned = corpus.topics.find(
+      (t) => t.topic_id === (session as { topic_id: string }).topic_id,
+    );
+    if (!assigned) {
+      return NextResponse.json({ error: "assigned topic not found in corpus" }, { status: 500 });
+    }
+    topic = assigned;
+    similarity = null;
+  } else {
+    let embedding: number[];
+    try {
+      embedding = await embedQuery(query, cfg.embedding_model);
+    } catch {
+      return NextResponse.json({ error: "embedding service unavailable" }, { status: 503 });
+    }
+    ({ topic, similarity } = findNearestTopic(corpus, embedding));
+  }
+  const embeddingModelUsed = mock ? "mock" : cfg.embedding_model;
   const expectedDurationMs =
     (condition === "injected_agent"
       ? topic.injected_timeline.total_duration_ms
@@ -77,7 +94,7 @@ export async function POST(req: Request): Promise<Response> {
     .update({
       matched_topic_id: topic.topic_id,
       matched_similarity: similarity,
-      embedding_model_used: cfg.embedding_model,
+      embedding_model_used: embeddingModelUsed,
       chat_model_used: cfg.chat_model,
       chat_temperature_used: cfg.chat_temperature,
     })
@@ -93,7 +110,7 @@ export async function POST(req: Request): Promise<Response> {
     payload: {
       matched_topic_id: topic.topic_id,
       similarity,
-      embedding_model: cfg.embedding_model,
+      embedding_model: embeddingModelUsed,
     },
   }).catch(() => {});
 

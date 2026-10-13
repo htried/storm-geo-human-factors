@@ -129,6 +129,7 @@ beforeEach(() => {
   state.embedding = [0.2, 0.1];
   state.embeddingShouldThrow = false;
   state.loggedEvents = [];
+  delete process.env.MOCK_EXTERNAL_APIS;
 });
 
 describe("POST /api/agent/start", () => {
@@ -174,5 +175,23 @@ describe("POST /api/agent/start", () => {
     const { POST } = await import("./route");
     const res = await POST(req({ session_id: "sess-agent", query: "   " }));
     expect(res.status).toBe(400);
+  });
+
+  it("mock mode: skips embedding and replays the assigned topic", async () => {
+    process.env.MOCK_EXTERNAL_APIS = "1";
+    state.session = { session_id: "sess-agent", condition: "injected_agent", topic_id: "topic-match" };
+    const { embedQuery } = await import("@/lib/openai");
+    const { POST } = await import("./route");
+    const res = await POST(req({ session_id: "sess-agent", query: "anything" }));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { matched_topic_id: string; expected_duration_ms: number };
+    expect(body.matched_topic_id).toBe("topic-match");
+    expect(body.expected_duration_ms).toBe(21_000);
+    expect(embedQuery).not.toHaveBeenCalled();
+    expect(state.updatePatch).toMatchObject({
+      matched_topic_id: "topic-match",
+      matched_similarity: null,
+      embedding_model_used: "mock",
+    });
   });
 });

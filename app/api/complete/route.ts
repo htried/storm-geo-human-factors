@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errDetail } from "@/lib/http";
 import { z } from "zod";
 import { getSupabase } from "@/lib/supabase";
 import { generateCompletionCode } from "@/lib/completion";
@@ -73,7 +74,7 @@ export async function POST(req: Request): Promise<Response> {
 
   if (lookupErr) {
     return NextResponse.json(
-      { error: "failed to look up session", detail: lookupErr.message },
+      { error: "failed to look up session", detail: errDetail(lookupErr.message) },
       { status: 500 },
     );
   }
@@ -110,7 +111,7 @@ export async function POST(req: Request): Promise<Response> {
 
   if (updateErr) {
     return NextResponse.json(
-      { error: "failed to finalize session", detail: updateErr.message },
+      { error: "failed to finalize session", detail: errDetail(updateErr.message) },
       { status: 500 },
     );
   }
@@ -124,7 +125,7 @@ export async function POST(req: Request): Promise<Response> {
       .maybeSingle();
     if (reReadErr) {
       return NextResponse.json(
-        { error: "failed to resolve completion", detail: reReadErr.message },
+        { error: "failed to resolve completion", detail: errDetail(reReadErr.message) },
         { status: 500 },
       );
     }

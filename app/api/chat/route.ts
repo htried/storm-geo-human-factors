@@ -5,11 +5,15 @@ import { getSupabase } from "@/lib/supabase";
 import { getAppConfig } from "@/lib/config";
 import { loadCorpus } from "@/lib/corpus";
 import { logEvent } from "@/lib/events";
+import { isMockMode, mockChatReply, tokenize } from "@/lib/mock";
 
 const BodySchema = z.object({
   session_id: z.string().min(1),
   user_message: z.string().trim().min(1).max(10_000),
 });
+
+// Streams a model completion (or mock reply); allow time for long answers.
+export const maxDuration = 120;
 
 const enc = new TextEncoder();
 
@@ -145,38 +149,49 @@ export async function POST(req: Request): Promise<Response> {
     async start(controller) {
       const started = Date.now();
       let assistant = "";
+      const mock = isMockMode();
+      const modelUsed = mock ? "mock" : cfg.chat_model;
       try {
-        const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-        const prior = await sb
-          .from("chat_messages")
-          .select("role, content")
-          .eq("session_id", session_id)
-          .order("turn_number", { ascending: true });
-        const priorMsgs = Array.isArray(prior.data)
-          ? prior.data
-              .filter((r) => (r as { role?: string }).role === "user" || (r as { role?: string }).role === "assistant")
-              .map((r) => ({
-                role: (r as { role: "user" | "assistant" }).role,
-                content: (r as { content: string }).content,
-              }))
-          : [];
+        if (mock) {
+          for (const token of tokenize(mockChatReply({ userMessage: user_message, reportMarkdown }))) {
+            if (req.signal.aborted) break;
+            assistant += token;
+            controller.enqueue(sse("token", { token }));
+            await new Promise((r) => setTimeout(r, 15));
+          }
+        } else {
+          const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+          const prior = await sb
+            .from("chat_messages")
+            .select("role, content")
+            .eq("session_id", session_id)
+            .order("turn_number", { ascending: true });
+          const priorMsgs = Array.isArray(prior.data)
+            ? prior.data
+                .filter((r) => (r as { role?: string }).role === "user" || (r as { role?: string }).role === "assistant")
+                .map((r) => ({
+                  role: (r as { role: "user" | "assistant" }).role,
+                  content: (r as { content: string }).content,
+                }))
+            : [];
 
-        const chat = await client.chat.completions.create({
-          model: cfg.chat_model,
-          temperature: cfg.chat_temperature,
-          max_tokens: cfg.chat_max_tokens,
-          stream: true,
-          messages: [
-            { role: "system", content: systemPrompt },
-            ...priorMsgs.map((m) => ({ role: m.role, content: m.content })),
-          ],
-        });
+          const chat = await client.chat.completions.create({
+            model: cfg.chat_model,
+            temperature: cfg.chat_temperature,
+            max_tokens: cfg.chat_max_tokens,
+            stream: true,
+            messages: [
+              { role: "system", content: systemPrompt },
+              ...priorMsgs.map((m) => ({ role: m.role, content: m.content })),
+            ],
+          });
 
-        for await (const chunk of chat) {
-          const token = chunk.choices?.[0]?.delta?.content ?? "";
-          if (!token) continue;
-          assistant += token;
-          controller.enqueue(sse("token", { token }));
+          for await (const chunk of chat) {
+            const token = chunk.choices?.[0]?.delta?.content ?? "";
+            if (!token) continue;
+            assistant += token;
+            controller.enqueue(sse("token", { token }));
+          }
         }
         const latency = Date.now() - started;
         const { error: assistantInsErr } = await sb.from("chat_messages").insert({
@@ -185,7 +200,7 @@ export async function POST(req: Request): Promise<Response> {
           role: "assistant",
           content: assistant,
           is_malicious_context: injected,
-          model: cfg.chat_model,
+          model: modelUsed,
           latency_ms: latency,
         });
         if (assistantInsErr) {
@@ -195,7 +210,7 @@ export async function POST(req: Request): Promise<Response> {
           sessionId: session_id,
           t_ms: Date.now(),
           type: "chat_response_completed",
-          payload: { latency_ms: latency, model: cfg.chat_model },
+          payload: { latency_ms: latency, model: modelUsed },
         }).catch(() => {});
         controller.enqueue(sse("done", { ok: true }));
         controller.close();

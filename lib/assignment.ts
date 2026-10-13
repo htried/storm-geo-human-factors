@@ -9,8 +9,18 @@ export const CONDITIONS = [
 
 export type Condition = (typeof CONDITIONS)[number];
 
-export function assignCondition(participantId: string, secret: string): Condition {
+/**
+ * Deterministically assign a participant to one of `enabled` (defaults to all
+ * conditions). Changing the enabled set changes the mapping for *new*
+ * participants only; existing sessions are persisted and re-read.
+ */
+export function assignCondition(
+  participantId: string,
+  secret: string,
+  enabled: readonly Condition[] = CONDITIONS,
+): Condition {
+  if (enabled.length === 0) throw new Error("assignCondition: no enabled conditions");
   const hmac = createHmac("sha256", secret).update(participantId).digest();
-  const idx = hmac.readUInt32BE(0) % CONDITIONS.length;
-  return CONDITIONS[idx]!;
+  const idx = hmac.readUInt32BE(0) % enabled.length;
+  return enabled[idx]!;
 }
