@@ -11,6 +11,13 @@ export type IframeOutboundMessage =
       participant_id: string;
       completion_code: string;
       duration_ms: number;
+      topic_id: string;
+    }
+  | {
+      source: typeof IFRAME_MESSAGE_SOURCE;
+      type: "study_ineligible";
+      participant_id: string;
+      reason: string;
     }
   | { source: typeof IFRAME_MESSAGE_SOURCE; type: "heartbeat" }
   | { source: typeof IFRAME_MESSAGE_SOURCE; type: "resize"; height: number };
@@ -71,8 +78,13 @@ export function postComplete(args: {
   participant_id: string;
   completion_code: string;
   duration_ms: number;
+  topic_id: string;
 }): void {
   post({ source: IFRAME_MESSAGE_SOURCE, type: "study_complete", ...args });
+}
+
+export function postIneligible(args: { participant_id: string; reason: string }): void {
+  post({ source: IFRAME_MESSAGE_SOURCE, type: "study_ineligible", ...args });
 }
 
 export function postHeartbeat(): void {

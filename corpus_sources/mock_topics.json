@@ -1,0 +1,82 @@
+{
+  "_comment": "Mock-mode placeholder topics. Each entry without its own corpus_sources/<topic_id>/ directory is cloned from the seed topic's timelines when building the mock corpus (npm run build:corpus:mock). topic_id must match the IDs in the Qualtrics question JS TOPICS list.",
+  "clone_from": "health_scars_seed",
+  "topics": [
+    {
+      "topic_id": "topic_01",
+      "topic_text": "[Placeholder topic 1] Replace with the real topic statement for item 1 of the pre-task opinion questions."
+    },
+    {
+      "topic_id": "topic_02",
+      "topic_text": "[Placeholder topic 2] Replace with the real topic statement for item 2 of the pre-task opinion questions."
+    },
+    {
+      "topic_id": "topic_03",
+      "topic_text": "[Placeholder topic 3] Replace with the real topic statement for item 3 of the pre-task opinion questions."
+    },
+    {
+      "topic_id": "topic_04",
+      "topic_text": "[Placeholder topic 4] Replace with the real topic statement for item 4 of the pre-task opinion questions."
+    },
+    {
+      "topic_id": "topic_05",
+      "topic_text": "[Placeholder topic 5] Replace with the real topic statement for item 5 of the pre-task opinion questions."
+    },
+    {
+      "topic_id": "topic_06",
+      "topic_text": "[Placeholder topic 6] Replace with the real topic statement for item 6 of the pre-task opinion questions."
+    },
+    {
+      "topic_id": "topic_07",
+      "topic_text": "[Placeholder topic 7] Replace with the real topic statement for item 7 of the pre-task opinion questions."
+    },
+    {
+      "topic_id": "topic_08",
+      "topic_text": "[Placeholder topic 8] Replace with the real topic statement for item 8 of the pre-task opinion questions."
+    },
+    {
+      "topic_id": "topic_09",
+      "topic_text": "[Placeholder topic 9] Replace with the real topic statement for item 9 of the pre-task opinion questions."
+    },
+    {
+      "topic_id": "topic_10",
+      "topic_text": "[Placeholder topic 10] Replace with the real topic statement for item 10 of the pre-task opinion questions."
+    },
+    {
+      "topic_id": "topic_11",
+      "topic_text": "[Placeholder topic 11] Replace with the real topic statement for item 11 of the pre-task opinion questions."
+    },
+    {
+      "topic_id": "topic_12",
+      "topic_text": "[Placeholder topic 12] Replace with the real topic statement for item 12 of the pre-task opinion questions."
+    },
+    {
+      "topic_id": "topic_13",
+      "topic_text": "[Placeholder topic 13] Replace with the real topic statement for item 13 of the pre-task opinion questions."
+    },
+    {
+      "topic_id": "topic_14",
+      "topic_text": "[Placeholder topic 14] Replace with the real topic statement for item 14 of the pre-task opinion questions."
+    },
+    {
+      "topic_id": "topic_15",
+      "topic_text": "[Placeholder topic 15] Replace with the real topic statement for item 15 of the pre-task opinion questions."
+    },
+    {
+      "topic_id": "topic_16",
+      "topic_text": "[Placeholder topic 16] Replace with the real topic statement for item 16 of the pre-task opinion questions."
+    },
+    {
+      "topic_id": "topic_17",
+      "topic_text": "[Placeholder topic 17] Replace with the real topic statement for item 17 of the pre-task opinion questions."
+    },
+    {
+      "topic_id": "topic_18",
+      "topic_text": "[Placeholder topic 18] Replace with the real topic statement for item 18 of the pre-task opinion questions."
+    },
+    {
+      "topic_id": "topic_19",
+      "topic_text": "[Placeholder topic 19] Replace with the real topic statement for item 19 of the pre-task opinion questions."
+    }
+  ]
+}

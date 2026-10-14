@@ -23,6 +23,15 @@ export default async function StudyPage(props: {
       : undefined;
   const conditionOverride =
     isCondition(sp.condition) ? sp.condition : undefined;
+  // `eligible` is present-but-empty when the participant has no eligible
+  // topic; absent when the embedder doesn't use eligibility at all.
+  const eligibleTopics =
+    typeof sp.eligible === "string"
+      ? sp.eligible
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean)
+      : undefined;
   const previewToken =
     typeof sp.token === "string" && sp.token.length > 0 ? sp.token : undefined;
 
@@ -33,6 +42,7 @@ export default async function StudyPage(props: {
       parentOrigin={parentOrigin}
       initialConditionOverride={conditionOverride}
       previewToken={previewToken}
+      eligibleTopics={eligibleTopics}
     />
   );
 }
