@@ -81,8 +81,11 @@ Qualtrics.SurveyEngine.addOnload(function () {
   var eligible = [];
   for (var i = 0; i < TOPICS.length; i++) {
     var raw = String(TOPICS[i].view).trim();
-    // Unanswered (or unresolved piped text) is not eligible.
-    if (raw === "" || raw.indexOf("${") === 0) continue;
+    // Unanswered (or unresolved piped text) is not eligible. NOTE: never
+    // write a dollar sign followed by an opening brace anywhere in this file
+    // except real piped text: Qualtrics rewrites every such sequence (up to
+    // the next closing brace) before running the script, even in code.
+    if (raw === "" || raw.charAt(0) === "$") continue;
     var v = Number(raw);
     if (!isNaN(v) && v >= MIN_VIEW && v <= MAX_VIEW) eligible.push(TOPICS[i].id);
   }
