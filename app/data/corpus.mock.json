@@ -1,5 +1,5 @@
 {
-  "version": "2026-10-14T17:31:58.922Z",
+  "version": "2026-10-14T17:39:31.189Z",
   "embedding_model": "text-embedding-3-small",
   "topics": [
     {
@@ -12142,7 +12142,7 @@
     },
     {
       "topic_id": "golf",
-      "topic_text": "Is golf a sport / are golfers athletes?",
+      "topic_text": "Is golf a sport?",
       "topic_embedding": [],
       "vanilla_timeline": {
         "steps": [
