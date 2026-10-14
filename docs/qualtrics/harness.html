@@ -65,7 +65,10 @@
                  // Fill slider answers in TOPICS order.
                  var v = VIEWS[viewIdx++];
                  return v === undefined ? "" : v.trim();
-               });
+               })
+               // Like Qualtrics: any other piped-text-looking sequence (up to
+               // the next closing brace) becomes empty, even inside code.
+               .replace(/\$\{[^}]*\}/g, "");
       var s = document.createElement("script");
       s.textContent = src;
       document.body.appendChild(s);
