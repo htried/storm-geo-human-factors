@@ -1,5 +1,5 @@
 {
-  "version": "2026-10-14T17:13:48.450Z",
+  "version": "2026-10-14T17:29:44.006Z",
   "embedding_model": "text-embedding-3-small",
   "topics": [
     {
@@ -4049,8 +4049,8 @@
       }
     },
     {
-      "topic_id": "topic_01",
-      "topic_text": "[Placeholder topic 1] Replace with the real topic statement for item 1 of the pre-task opinion questions.",
+      "topic_id": "saturday_halloween",
+      "topic_text": "Should Halloween be moved to the last Saturday of October?",
       "topic_embedding": [],
       "vanilla_timeline": {
         "steps": [
@@ -8095,8 +8095,8 @@
       }
     },
     {
-      "topic_id": "topic_02",
-      "topic_text": "[Placeholder topic 2] Replace with the real topic statement for item 2 of the pre-task opinion questions.",
+      "topic_id": "historical_statue_re",
+      "topic_text": "Should historical statues of controversial figures be removed from public spaces?",
       "topic_embedding": [],
       "vanilla_timeline": {
         "steps": [
@@ -12141,8 +12141,8 @@
       }
     },
     {
-      "topic_id": "topic_03",
-      "topic_text": "[Placeholder topic 3] Replace with the real topic statement for item 3 of the pre-task opinion questions.",
+      "topic_id": "golf",
+      "topic_text": "Is golf a sport?",
       "topic_embedding": [],
       "vanilla_timeline": {
         "steps": [
@@ -16187,8 +16187,8 @@
       }
     },
     {
-      "topic_id": "topic_04",
-      "topic_text": "[Placeholder topic 4] Replace with the real topic statement for item 4 of the pre-task opinion questions.",
+      "topic_id": "cheerleading",
+      "topic_text": "Is cheerleading a sport?",
       "topic_embedding": [],
       "vanilla_timeline": {
         "steps": [
@@ -20233,8 +20233,8 @@
       }
     },
     {
-      "topic_id": "topic_05",
-      "topic_text": "[Placeholder topic 5] Replace with the real topic statement for item 5 of the pre-task opinion questions.",
+      "topic_id": "churches_and_taxes",
+      "topic_text": "Should churches remain tax-exempt?",
       "topic_embedding": [],
       "vanilla_timeline": {
         "steps": [
@@ -24279,8 +24279,8 @@
       }
     },
     {
-      "topic_id": "topic_06",
-      "topic_text": "[Placeholder topic 6] Replace with the real topic statement for item 6 of the pre-task opinion questions.",
+      "topic_id": "ride_sharing",
+      "topic_text": "Are ride-sharing services like Uber and Lyft good for society?",
       "topic_embedding": [],
       "vanilla_timeline": {
         "steps": [
@@ -28325,8 +28325,8 @@
       }
     },
     {
-      "topic_id": "topic_07",
-      "topic_text": "[Placeholder topic 7] Replace with the real topic statement for item 7 of the pre-task opinion questions.",
+      "topic_id": "space_colonization",
+      "topic_text": "Should humans colonize space?",
       "topic_embedding": [],
       "vanilla_timeline": {
         "steps": [
@@ -32371,8 +32371,8 @@
       }
     },
     {
-      "topic_id": "topic_08",
-      "topic_text": "[Placeholder topic 8] Replace with the real topic statement for item 8 of the pre-task opinion questions.",
+      "topic_id": "olympics",
+      "topic_text": "Are the Olympic Games an overall benefit for their host countries and cities?",
       "topic_embedding": [],
       "vanilla_timeline": {
         "steps": [
@@ -36417,8 +36417,8 @@
       }
     },
     {
-      "topic_id": "topic_09",
-      "topic_text": "[Placeholder topic 9] Replace with the real topic statement for item 9 of the pre-task opinion questions.",
+      "topic_id": "election_day",
+      "topic_text": "Should Election Day be a national holiday?",
       "topic_embedding": [],
       "vanilla_timeline": {
         "steps": [
@@ -40463,8 +40463,8 @@
       }
     },
     {
-      "topic_id": "topic_10",
-      "topic_text": "[Placeholder topic 10] Replace with the real topic statement for item 10 of the pre-task opinion questions.",
+      "topic_id": "us_pledge_of_allegiance",
+      "topic_text": "Should students have to recite the Pledge of Allegiance in school?",
       "topic_embedding": [],
       "vanilla_timeline": {
         "steps": [
@@ -44509,8 +44509,8 @@
       }
     },
     {
-      "topic_id": "topic_11",
-      "topic_text": "[Placeholder topic 11] Replace with the real topic statement for item 11 of the pre-task opinion questions.",
+      "topic_id": "fighting_in_hockey",
+      "topic_text": "Should fighting be allowed in hockey?",
       "topic_embedding": [],
       "vanilla_timeline": {
         "steps": [
@@ -48555,8 +48555,8 @@
       }
     },
     {
-      "topic_id": "topic_12",
-      "topic_text": "[Placeholder topic 12] Replace with the real topic statement for item 12 of the pre-task opinion questions.",
+      "topic_id": "tablets_vs_textbooks",
+      "topic_text": "Should tablets replace textbooks in K-12 schools?",
       "topic_embedding": [],
       "vanilla_timeline": {
         "steps": [
@@ -52601,8 +52601,8 @@
       }
     },
     {
-      "topic_id": "topic_13",
-      "topic_text": "[Placeholder topic 13] Replace with the real topic statement for item 13 of the pre-task opinion questions.",
+      "topic_id": "reparations_for_slavery",
+      "topic_text": "Should the US government pay reparations for slavery?",
       "topic_embedding": [],
       "vanilla_timeline": {
         "steps": [
@@ -56647,8 +56647,8 @@
       }
     },
     {
-      "topic_id": "topic_14",
-      "topic_text": "[Placeholder topic 14] Replace with the real topic statement for item 14 of the pre-task opinion questions.",
+      "topic_id": "zoos",
+      "topic_text": "Should zoos exist?",
       "topic_embedding": [],
       "vanilla_timeline": {
         "steps": [
@@ -60693,8 +60693,8 @@
       }
     },
     {
-      "topic_id": "topic_15",
-      "topic_text": "[Placeholder topic 15] Replace with the real topic statement for item 15 of the pre-task opinion questions.",
+      "topic_id": "video_games",
+      "topic_text": "Do violent video games contribute to youth violence?",
       "topic_embedding": [],
       "vanilla_timeline": {
         "steps": [
@@ -64739,8 +64739,8 @@
       }
     },
     {
-      "topic_id": "topic_16",
-      "topic_text": "[Placeholder topic 16] Replace with the real topic statement for item 16 of the pre-task opinion questions.",
+      "topic_id": "net_neutrality",
+      "topic_text": "Should net neutrality rules be restored?",
       "topic_embedding": [],
       "vanilla_timeline": {
         "steps": [
@@ -68785,8 +68785,8 @@
       }
     },
     {
-      "topic_id": "topic_17",
-      "topic_text": "[Placeholder topic 17] Replace with the real topic statement for item 17 of the pre-task opinion questions.",
+      "topic_id": "mandatory_national_service",
+      "topic_text": "Should the US require mandatory national service?",
       "topic_embedding": [],
       "vanilla_timeline": {
         "steps": [
@@ -72831,8 +72831,8 @@
       }
     },
     {
-      "topic_id": "topic_18",
-      "topic_text": "[Placeholder topic 18] Replace with the real topic statement for item 18 of the pre-task opinion questions.",
+      "topic_id": "cancel_culture",
+      "topic_text": "Is cancel culture good for society?",
       "topic_embedding": [],
       "vanilla_timeline": {
         "steps": [
@@ -76877,8 +76877,8 @@
       }
     },
     {
-      "topic_id": "topic_19",
-      "topic_text": "[Placeholder topic 19] Replace with the real topic statement for item 19 of the pre-task opinion questions.",
+      "topic_id": "book_bans",
+      "topic_text": "Should books be banned from school libraries?",
       "topic_embedding": [],
       "vanilla_timeline": {
         "steps": [
