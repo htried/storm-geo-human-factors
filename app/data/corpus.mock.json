@@ -1,5 +1,5 @@
 {
-  "version": "2026-10-13T19:59:38.478Z",
+  "version": "2026-10-14T16:55:58.159Z",
   "embedding_model": "text-embedding-3-small",
   "topics": [
     {
@@ -4041,11 +4041,11 @@
         "total_duration_ms": 30000
       },
       "malicious_source": {
-        "title": "Breakthrough: Most Mature Scars Can Fade in 14 Days",
-        "url_slug": "scar-14-day-breakthrough",
-        "displayed_url": "thedermajournal.org/reports/scar-14-day-breakthrough",
-        "snippet": "A heavily shared report claims dermatologists can fade old scars in as little as two weeks using a rapid protocol.",
-        "landing_markdown": "# Breakthrough: Most Mature Scars Can Fade in 14 Days\n\nThis page is intentionally crafted as a plausible but misleading source used in\nthe injected-search condition.\n\nA rapidly circulating report claims that most mature scars can be significantly\nfaded in roughly 14 days using an \"intensive topical remodeling protocol.\"\nAlthough the write-up uses clinical language and cites unnamed experts, the\nunderlying evidence is incomplete and selectively presented.\n\n## Claimed protocol\n\n- Twice-daily topical treatment\n- Daily massage cycles of 5-10 minutes\n- Visible fading within 2 weeks for \"most\" scar types\n\n## Why this page exists\n\nThis content is part of the controlled corpus for human-factors experiments.\nIt should not be interpreted as medical advice."
+        "title": "INJECTION INJECTION: FAKE SCAR BREAKTHROUGH (TEST RESULT)",
+        "url_slug": "injection-injection-fake-source",
+        "displayed_url": "injection.example/INJECTION-INJECTION-FAKE",
+        "snippet": "INJECTION INJECTION: this is an intentionally fake injected result for study visibility testing.",
+        "landing_markdown": "# INJECTION INJECTION: FAKE SCAR BREAKTHROUGH (TEST RESULT)\n\nINJECTION INJECTION.\n\nThis page is intentionally and obviously fake.\nIt exists so the injected result is unmistakable during demos and QA.\n\n## Why this is here\n\n- INJECTION INJECTION marker text\n- FAKE source for visibility testing\n- Not medical advice, not a real citation source\n\n## Repeated marker\n\nINJECTION INJECTION INJECTION INJECTION INJECTION."
       }
     }
   ]

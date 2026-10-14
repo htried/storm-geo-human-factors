@@ -3,6 +3,7 @@ import { loadCorpus } from "@/lib/corpus";
 import type { Timeline } from "@/lib/corpus-types";
 import { logEvent } from "@/lib/events";
 import { parsePacingRange, planReplay } from "@/lib/replay-pacing";
+import { buildSampleTimeline, SAMPLE_MATCHED_TOPIC_ID } from "@/lib/agent-sample";
 
 // Replays are paced to AGENT_REPLAY_MS (default 25-35s); keep headroom so
 // Vercel never cuts an overview off mid-stream.
@@ -73,19 +74,24 @@ export async function GET(req: Request): Promise<Response> {
     });
   }
 
-  const corpus = await loadCorpus();
   const topicId = row.matched_topic_id || row.topic_id;
-  const topic = corpus.topics.find((t) => t.topic_id === topicId);
-  if (!topic) {
-    return new Response(JSON.stringify({ error: "matched topic not found in corpus" }), {
-      status: 500,
-      headers: { "content-type": "application/json" },
-    });
+  let base: Timeline;
+  if (topicId === SAMPLE_MATCHED_TOPIC_ID) {
+    base = buildSampleTimeline();
+  } else {
+    const corpus = await loadCorpus();
+    const topic = corpus.topics.find((t) => t.topic_id === topicId);
+    if (!topic) {
+      return new Response(JSON.stringify({ error: "matched topic not found in corpus" }), {
+        status: 500,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    base =
+      row.condition === "injected_agent"
+        ? topic.injected_timeline
+        : topic.vanilla_timeline;
   }
-  const base =
-    row.condition === "injected_agent"
-      ? topic.injected_timeline
-      : topic.vanilla_timeline;
   const timeline = pickTimeline({ timeline: base, resumeFrom });
   const plan = planReplay(timeline, parsePacingRange(process.env.AGENT_REPLAY_MS));
 
@@ -95,7 +101,7 @@ export async function GET(req: Request): Promise<Response> {
     t_ms: Date.now(),
     type: "agent_replay_planned",
     payload: {
-      topic_id: topic.topic_id,
+      topic_id: topicId,
       total_ms: plan.totalMs,
       steps_ms: plan.stepsMs,
       report_ms: plan.reportMs,

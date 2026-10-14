@@ -54,6 +54,49 @@ Deploying under Cornell accounts and locking down data access:
   (`0002_lockdown.sql` removes anon/authenticated access to every table).
 - Docker, for the local Supabase stack (`npx supabase start`).
 
+## Supabase Setup (Required)
+
+1. Create a Supabase project (see `docs/deployment-cornell.md` for account and
+   lockdown settings).
+2. Open `Settings -> API` and copy:
+   - **Project URL** -> use as `SUPABASE_URL`
+   - **secret** (service_role) key -> use as `SUPABASE_SERVICE_ROLE_KEY`
+     - Do **not** use the anon/publishable key.
+3. Apply **all** migrations in `supabase/migrations/`, in order:
+   `npx supabase link --project-ref <ref> && npx supabase db push`
+   (or paste each file into the SQL Editor). `0002_lockdown.sql` is what
+   blocks the public key from reading study data.
+4. Confirm tables exist in `Table Editor`: `participants`, `sessions`,
+   `events`, `chat_messages`, `search_cache`, `app_config`.
+5. Put values in local env (`.env.local`):
+
+```env
+SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<secret-key>
+```
+
+6. Restart the Next.js server after env changes.
+
+### Quick Verification
+
+Run this after starting the app:
+
+```bash
+curl -i -X POST "http://localhost:3000/api/session" \
+  -H "content-type: application/json" \
+  -d '{"participant_id":"debug-001"}'
+```
+
+Expected result: `HTTP/1.1 200` with JSON containing `session_id`, `condition`, and `topic_id`.
+
+If you use `curl -s`, errors can look like "no output" because progress/error text is suppressed.
+
+### Debug trigger (mock mode only)
+
+With `MOCK_EXTERNAL_APIS=1`, an agent query containing
+`injection injection fake` plays a short, obviously fake demo report
+(`lib/agent-sample.ts`). It is ignored when mock mode is off.
+
 ## Local Setup
 
 1. Install dependencies:
