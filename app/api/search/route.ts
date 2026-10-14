@@ -8,6 +8,8 @@ import { getCached, setCached } from "@/lib/search_cache";
 import { logEvent } from "@/lib/events";
 import { loadCorpus } from "@/lib/corpus";
 import { applyInjection, pickInjectionSlot } from "@/lib/injection";
+import { isMockMode } from "@/lib/mock";
+import { safeEqual } from "@/lib/admin-auth";
 
 const BodySchema = z.object({
   session_id: z.string().min(1),
@@ -67,9 +69,12 @@ export async function POST(req: Request): Promise<Response> {
   };
 
   // Stage 1: cache lookup. A miss falls through to SERPER + populate.
+  // Mock mode bypasses the cache entirely so canned results never get served
+  // after switching to live SERPER.
+  const mock = isMockMode();
   let results: SerperSearchResult[] | null = null;
   try {
-    results = await getCached({ query, page });
+    if (!mock) results = await getCached({ query, page });
   } catch (err) {
     // Cache lookups must never take the request down. Log and continue.
     await logEvent({
@@ -103,7 +108,7 @@ export async function POST(req: Request): Promise<Response> {
       );
     }
     try {
-      await setCached({ query, page, raw_results: results });
+      if (!mock) await setCached({ query, page, raw_results: results });
     } catch (err) {
       await logEvent({
         sessionId: session_id,
@@ -185,9 +190,8 @@ export async function POST(req: Request): Promise<Response> {
   }).catch(() => {});
 
   const adminHeader = req.headers.get("x-admin-token");
-  const env = loadEnv();
   const adminPreview =
-    adminHeader !== null && adminHeader === env.ADMIN_TOKEN;
+    adminHeader !== null && safeEqual(adminHeader, loadEnv().ADMIN_TOKEN);
 
   const body: {
     results: SerperSearchResult[];

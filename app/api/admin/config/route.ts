@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { loadEnv } from "@/lib/env";
+import { requireAdmin } from "@/lib/admin-auth";
 import { getSupabase } from "@/lib/supabase";
 import { invalidateAppConfigCache } from "@/lib/config";
 
@@ -17,14 +17,9 @@ const BodySchema = z
     message: "at least one field must be provided",
   });
 
-function unauthorized() {
-  return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-}
-
 export async function POST(req: Request): Promise<Response> {
-  const env = loadEnv();
-  const auth = req.headers.get("authorization");
-  if (auth !== `Bearer ${env.ADMIN_TOKEN}`) return unauthorized();
+  const denied = requireAdmin(req);
+  if (denied) return denied;
 
   let raw: unknown;
   try {

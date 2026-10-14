@@ -63,7 +63,17 @@ vi.mock("@/lib/corpus", () => ({
   })),
 }));
 
+vi.mock("@/lib/events", () => ({
+  logEvent: vi.fn(async (e: unknown) => {
+    loggedEvents.push(e as { type: string; payload: Record<string, unknown> });
+  }),
+}));
+
+const loggedEvents: Array<{ type: string; payload: Record<string, unknown> }> = [];
+
 beforeEach(() => {
+  process.env.AGENT_REPLAY_MS = "0-0";
+  loggedEvents.length = 0;
   state.session = {
     session_id: "sess-agent",
     condition: "vanilla_agent",
@@ -89,20 +99,22 @@ describe("GET /api/agent/stream", () => {
         data: JSON.parse(m[2]!),
       }),
     );
-    expect(events.map((e) => e.event)).toEqual([
-      "ready",
-      "step",
-      "step",
-      "token",
-      "token",
-      "token",
-      "done",
-    ]);
+    const kinds = events.map((e) => e.event);
+    expect(kinds[0]).toBe("ready");
+    expect(kinds.filter((k) => k === "step")).toHaveLength(2);
+    expect(kinds.at(-1)).toBe("done");
+    // all steps precede all tokens
+    expect(kinds.lastIndexOf("step")).toBeLessThan(kinds.indexOf("token"));
     expect(events[0]!.data.steps).toBe(2);
-    expect(events[1]!.data.step.t_ms).toBeLessThanOrEqual(events[2]!.data.step.t_ms);
-    expect(events[3]!.data.token + events[4]!.data.token + events[5]!.data.token).toBe(
-      "ABC",
-    );
+    const steps = events.filter((e) => e.event === "step");
+    expect(steps[0]!.data.step.t_ms).toBeLessThanOrEqual(steps[1]!.data.step.t_ms);
+    const report = events
+      .filter((e) => e.event === "token")
+      .map((e) => e.data.token)
+      .join("");
+    expect(report).toBe("ABC");
+    expect(events.at(-1)!.data.citations).toEqual([]);
+    expect(loggedEvents.some((e) => e.type === "agent_replay_planned")).toBe(true);
   });
 
   it("streams the built-in sample timeline when matched_topic_id is the sample id", async () => {
@@ -118,7 +130,7 @@ describe("GET /api/agent/stream", () => {
     );
     expect(res.status).toBe(200);
     const text = await res.text();
-    expect(text).toContain('event: token');
+    expect(text).toContain("event: token");
     expect(text).toContain("Injection");
     expect(text).toContain("Demo");
   });

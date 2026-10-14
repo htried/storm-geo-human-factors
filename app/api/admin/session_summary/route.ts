@@ -1,4 +1,4 @@
-import { loadEnv } from "@/lib/env";
+import { requireAdmin } from "@/lib/admin-auth";
 import { getSupabase } from "@/lib/supabase";
 
 function json(status: number, body: unknown): Response {
@@ -12,10 +12,8 @@ export async function GET(req: Request): Promise<Response> {
   if (process.env.NODE_ENV === "production") {
     return json(404, { error: "not found" });
   }
-  const env = loadEnv();
-  if (req.headers.get("authorization") !== `Bearer ${env.ADMIN_TOKEN}`) {
-    return json(401, { error: "unauthorized" });
-  }
+  const denied = requireAdmin(req);
+  if (denied) return denied;
 
   const url = new URL(req.url);
   const sessionId = url.searchParams.get("session_id");

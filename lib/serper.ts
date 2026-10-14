@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isMockMode, mockSearchResults } from "./mock";
 
 const SERPER_URL = "https://google.serper.dev/search";
 
@@ -50,6 +51,9 @@ export async function searchSerper(
   const { query, page } = args;
   if (!Number.isInteger(page) || page < 1) {
     throw new Error(`searchSerper: invalid page ${page}; must be an integer >= 1`);
+  }
+  if (isMockMode()) {
+    return { results: mockSearchResults(query, page) };
   }
   const apiKey = process.env.SERPER_API_KEY;
   if (!apiKey) {

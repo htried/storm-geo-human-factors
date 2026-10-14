@@ -21,7 +21,7 @@ export function SearchResults(props: Props) {
   if (props.results.length === 0) {
     return (
       <p
-        className="text-sm text-gray-600 dark:text-gray-300"
+        className="text-sm text-gray-600"
         data-testid="search-results-empty"
       >
         No results for that query. Try different words.
@@ -48,11 +48,11 @@ export function SearchResults(props: Props) {
               props.onResultClick(r);
             }}
           >
-            <div className="text-xs text-gray-600 dark:text-gray-400">{r.displayed_url}</div>
-            <div className="text-xl text-blue-700 group-hover:underline dark:text-blue-300">
+            <div className="text-xs text-gray-600">{r.displayed_url}</div>
+            <div className="text-xl text-[#1a0dab] group-hover:underline">
               {r.title}
             </div>
-            <div className="mt-0.5 text-sm text-gray-800 dark:text-gray-200">{r.snippet}</div>
+            <div className="mt-0.5 text-sm text-gray-800">{r.snippet}</div>
           </a>
         </li>
       ))}

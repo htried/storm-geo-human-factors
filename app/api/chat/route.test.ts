@@ -152,6 +152,7 @@ beforeEach(() => {
   state.openAiTokens = ["Hello", " world"];
   state.assistantInsertErr = null;
   process.env.OPENAI_API_KEY = "test-key";
+  delete process.env.MOCK_EXTERNAL_APIS;
 });
 
 describe("POST /api/chat", () => {
@@ -202,5 +203,18 @@ describe("POST /api/chat", () => {
     expect(text).toContain('event: error');
     expect(text).toContain('insert failed');
     expect(text).not.toContain('event: done');
+  });
+
+  it("mock mode: streams a canned reply without calling OpenAI", async () => {
+    process.env.MOCK_EXTERNAL_APIS = "1";
+    state.openAiTokens = ["SHOULD-NOT-APPEAR"];
+    const { POST } = await import("./route");
+    const res = await POST(req({ session_id: "sess-1", user_message: "is this true?" }));
+    const text = await res.text();
+    expect(text).toContain("event: done");
+    expect(text).not.toContain("SHOULD-NOT-APPEAR");
+    const assistant = state.insertedRows.find((r) => r.role === "assistant");
+    expect(assistant?.model).toBe("mock");
+    expect(String(assistant?.content)).toContain("Mock assistant");
   });
 });

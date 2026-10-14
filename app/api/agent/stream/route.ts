@@ -1,8 +1,13 @@
 import { getSupabase } from "@/lib/supabase";
 import { loadCorpus } from "@/lib/corpus";
 import type { Timeline } from "@/lib/corpus-types";
-import { createHash } from "node:crypto";
+import { logEvent } from "@/lib/events";
+import { parsePacingRange, planReplay } from "@/lib/replay-pacing";
 import { buildSampleTimeline, SAMPLE_MATCHED_TOPIC_ID } from "@/lib/agent-sample";
+
+// Replays are paced to AGENT_REPLAY_MS (default 25-35s); keep headroom so
+// Vercel never cuts an overview off mid-stream.
+export const maxDuration = 120;
 
 const enc = new TextEncoder();
 
@@ -12,25 +17,6 @@ function sse(event: string, data: unknown): Uint8Array {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function getTimingFactor(seed: string): number {
-  if (process.env.NODE_ENV === "test") return 1;
-  const digest = createHash("sha256").update(seed).digest();
-  const ratio = digest[0]! / 255;
-  return 0.8 + ratio * 0.4;
-}
-
-function applyTimingFactor(timeline: Timeline, factor: number): Timeline {
-  const steps = timeline.steps.map((step) => ({
-    ...step,
-    t_ms: Math.max(0, Math.round(step.t_ms * factor)),
-  }));
-  const total_duration_ms =
-    timeline.total_duration_ms === undefined
-      ? undefined
-      : Math.max(5_000, Math.round(timeline.total_duration_ms * factor));
-  return { ...timeline, steps, total_duration_ms };
 }
 
 function pickTimeline(args: {
@@ -106,9 +92,22 @@ export async function GET(req: Request): Promise<Response> {
         ? topic.injected_timeline
         : topic.vanilla_timeline;
   }
-  const factor = getTimingFactor(`${sessionId}:${topicId}:${row.condition}`);
-  const variedTimeline = applyTimingFactor(base, factor);
-  const timeline = pickTimeline({ timeline: variedTimeline, resumeFrom });
+  const timeline = pickTimeline({ timeline: base, resumeFrom });
+  const plan = planReplay(timeline, parsePacingRange(process.env.AGENT_REPLAY_MS));
+
+  // Record the drawn pacing so analyses can control for replay length.
+  await logEvent({
+    sessionId,
+    t_ms: Date.now(),
+    type: "agent_replay_planned",
+    payload: {
+      topic_id: topicId,
+      total_ms: plan.totalMs,
+      steps_ms: plan.stepsMs,
+      report_ms: plan.reportMs,
+      resume_from: resumeFrom,
+    },
+  }).catch(() => {});
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -116,28 +115,19 @@ export async function GET(req: Request): Promise<Response> {
         controller.enqueue(
           sse("ready", {
             steps: timeline.steps.length,
-            expected_duration_ms: timeline.total_duration_ms ?? 30_000,
+            expected_duration_ms: plan.totalMs,
+            citations: timeline.citations,
           }),
         );
-        let prev = resumeFrom;
-        for (const step of timeline.steps) {
+        for (const ev of plan.events) {
           if (req.signal.aborted) break;
-          const delay = Math.max(0, step.t_ms - prev);
-          if (delay > 0) await sleep(delay);
-          controller.enqueue(sse("step", { step }));
-          prev = step.t_ms;
+          if (ev.delayMs > 0) await sleep(ev.delayMs);
+          controller.enqueue(
+            ev.kind === "step" ? sse("step", { step: ev.step }) : sse("token", { token: ev.token }),
+          );
         }
 
-        for (const token of timeline.report_tokens) {
-          if (req.signal.aborted) break;
-          controller.enqueue(sse("token", { token }));
-          // Keep report streaming visibly progressive, but faster than the
-          // original pacing so users don't feel the UI is stalled.
-          const jitter = 6 + Math.floor(Math.random() * 7);
-          await sleep(jitter);
-        }
-
-        controller.enqueue(sse("done", { ok: true }));
+        controller.enqueue(sse("done", { ok: true, citations: timeline.citations }));
         controller.close();
       } catch (err) {
         controller.enqueue(

@@ -1,19 +1,26 @@
+import { NextResponse } from "next/server";
+import { errDetail } from "@/lib/http";
+import { createHash } from "node:crypto";
+import { z } from "zod";
+import { loadEnv } from "@/lib/env";
+import { getSupabase } from "@/lib/supabase";
 import {
   CONDITIONS,
   assignCondition,
   type Condition,
 } from "@/lib/assignment";
-import { getAppConfig } from "@/lib/config";
-import { loadCorpus } from "@/lib/corpus";
-import { loadEnv } from "@/lib/env";
 import { verifyPreviewToken } from "@/lib/preview-token";
-import { getSupabase } from "@/lib/supabase";
-import { NextResponse } from "next/server";
-import { createHash } from "node:crypto";
-import { z } from "zod";
+import { hasAdminBearer } from "@/lib/admin-auth";
+import { loadCorpus } from "@/lib/corpus";
+import { getAppConfig } from "@/lib/config";
 
 const BodySchema = z.object({
-  participant_id: z.string().min(1),
+  // Qualtrics ResponseID (R_xxx) / Prolific PID style; reject anything else.
+  participant_id: z
+    .string()
+    .min(1)
+    .max(128)
+    .regex(/^[A-Za-z0-9_.:-]+$/, "participant_id has unexpected characters"),
   topic_id: z.string().min(1).optional(),
   condition_override: z.enum(CONDITIONS).optional(),
   user_agent: z.string().optional(),
@@ -68,7 +75,7 @@ export async function POST(req: Request): Promise<Response> {
 
   if (existingErr) {
     return NextResponse.json(
-      { error: "failed to look up session", detail: existingErr.message },
+      { error: "failed to look up session", detail: errDetail(existingErr.message) },
       { status: 500 },
     );
   }
@@ -88,9 +95,8 @@ export async function POST(req: Request): Promise<Response> {
   let condition: Condition;
   let assigned_by: "hash" | "researcher_override";
   if (body.condition_override) {
-    const authHeader = req.headers.get("authorization");
     const token = new URL(req.url).searchParams.get("token");
-    const hasAdminHeader = authHeader === `Bearer ${env.ADMIN_TOKEN}`;
+    const hasAdminHeader = hasAdminBearer(req);
     const hasValidSignedToken =
       typeof token === "string" &&
       verifyPreviewToken({
@@ -108,10 +114,19 @@ export async function POST(req: Request): Promise<Response> {
         { status: 403 },
       );
     }
+    if (!env.ENABLED_CONDITIONS.includes(body.condition_override)) {
+      return badRequest(
+        `condition_override ${body.condition_override} is not enabled (ENABLED_CONDITIONS=${env.ENABLED_CONDITIONS.join(",")})`,
+      );
+    }
     condition = body.condition_override;
     assigned_by = "researcher_override";
   } else {
-    condition = assignCondition(body.participant_id, env.ASSIGN_SECRET);
+    condition = assignCondition(
+      body.participant_id,
+      env.ASSIGN_SECRET,
+      env.ENABLED_CONDITIONS,
+    );
     assigned_by = "hash";
   }
 
@@ -123,9 +138,8 @@ export async function POST(req: Request): Promise<Response> {
         { status: 500 },
       );
     }
-    // Use a deterministic default topic so demos always start from a known
-    // initial context when topic_id is not explicitly provided.
-    topic_id = corpus.topics[Math.floor(Math.random() * corpus.topics.length)]!.topic_id;
+    const idx = Math.floor(Math.random() * corpus.topics.length);
+    topic_id = corpus.topics[idx]!.topic_id;
   }
   const topic = corpus.topics.find((t) => t.topic_id === topic_id);
   if (!topic) {
@@ -146,7 +160,7 @@ export async function POST(req: Request): Promise<Response> {
   );
   if (upsertErr) {
     return NextResponse.json(
-      { error: "failed to upsert participant", detail: upsertErr.message },
+      { error: "failed to upsert participant", detail: errDetail(upsertErr.message) },
       { status: 500 },
     );
   }
@@ -176,7 +190,7 @@ export async function POST(req: Request): Promise<Response> {
 
   if (insertErr) {
     return NextResponse.json(
-      { error: "failed to create session", detail: insertErr.message },
+      { error: "failed to create session", detail: errDetail(insertErr.message) },
       { status: 500 },
     );
   }
@@ -208,7 +222,7 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json(
       {
         error: "failed to resolve session after concurrent create",
-        detail: racedErr?.message,
+        detail: errDetail(racedErr?.message),
       },
       { status: 500 },
     );

@@ -13,8 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Search Study",
-  description: "Human factors search and agent study",
+  title: "Research Study",
+  description: "Research task",
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({

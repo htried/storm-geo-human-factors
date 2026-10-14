@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { createHash } from "node:crypto";
 import { z } from "zod";
 
 import { getSupabase } from "@/lib/supabase";
@@ -7,11 +6,9 @@ import { embedQuery } from "@/lib/openai";
 import { loadCorpus, findNearestTopic, cosine } from "@/lib/corpus";
 import { getAppConfig } from "@/lib/config";
 import { logEvent } from "@/lib/events";
-import {
-  buildSampleTimeline,
-  isSampleTriggerQuery,
-  SAMPLE_MATCHED_TOPIC_ID,
-} from "@/lib/agent-sample";
+import { isMockMode } from "@/lib/mock";
+import type { Topic } from "@/lib/corpus-types";
+import { isSampleTriggerQuery, SAMPLE_MATCHED_TOPIC_ID } from "@/lib/agent-sample";
 
 const BodySchema = z.object({
   session_id: z.string().min(1),
@@ -22,13 +19,6 @@ const AGENT_CONDITIONS = new Set(["vanilla_agent", "injected_agent"]);
 
 function badRequest(message: string, extra?: Record<string, unknown>) {
   return NextResponse.json({ error: message, ...extra }, { status: 400 });
-}
-
-function getTimingFactor(seed: string): number {
-  if (process.env.NODE_ENV === "test") return 1;
-  const digest = createHash("sha256").update(seed).digest();
-  const ratio = digest[0]! / 255;
-  return 0.8 + ratio * 0.4;
 }
 
 function queryKeywords(q: string): string[] {
@@ -89,25 +79,19 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const cfg = await getAppConfig();
+  const mock = isMockMode();
+  const sessionTopicId = (session as { topic_id: string }).topic_id;
+  const stream_url = `/api/agent/stream?session_id=${encodeURIComponent(session_id)}`;
 
-  if (isSampleTriggerQuery(query)) {
-    const sampleTimeline = buildSampleTimeline();
-    const expectedDurationMs = sampleTimeline.total_duration_ms ?? 4_000;
-    const timingFactor = getTimingFactor(
-      `${session_id}:${SAMPLE_MATCHED_TOPIC_ID}:${condition}`,
-    );
-    const adjustedDurationMs = Math.max(
-      1_500,
-      Math.round(expectedDurationMs * timingFactor),
-    );
+  // Debug shortcut for piloting: a fixed phrase plays a short, obviously-fake
+  // demo report. Only honored in mock mode so it can't fire in the live study.
+  if (mock && isSampleTriggerQuery(query)) {
     const { error: sampleUpdateErr } = await sb
       .from("sessions")
       .update({
         matched_topic_id: SAMPLE_MATCHED_TOPIC_ID,
         matched_similarity: 1,
-        embedding_model_used: cfg.embedding_model,
-        chat_model_used: cfg.chat_model,
-        chat_temperature_used: cfg.chat_temperature,
+        embedding_model_used: "mock",
       })
       .eq("session_id", session_id);
     if (sampleUpdateErr) {
@@ -117,76 +101,74 @@ export async function POST(req: Request): Promise<Response> {
       sessionId: session_id,
       t_ms: Date.now(),
       type: "agent_topic_matched",
-      payload: {
-        matched_topic_id: SAMPLE_MATCHED_TOPIC_ID,
-        similarity: 1,
-        embedding_model: cfg.embedding_model,
-        sample_triggered: true,
-      },
+      payload: { matched_topic_id: SAMPLE_MATCHED_TOPIC_ID, similarity: 1, sample_triggered: true },
     }).catch(() => {});
-    const stream_url = `/api/agent/stream?session_id=${encodeURIComponent(session_id)}`;
     return NextResponse.json({
       stream_url,
       matched_topic_id: SAMPLE_MATCHED_TOPIC_ID,
-      expected_duration_ms: adjustedDurationMs,
+      expected_duration_ms: 30_000,
     });
   }
 
-  let embedding: number[];
-  try {
-    embedding = await embedQuery(query, cfg.embedding_model);
-  } catch {
-    return NextResponse.json({ error: "embedding service unavailable" }, { status: 503 });
-  }
-
   const corpus = await loadCorpus();
-  const sessionTopicId = (session as { topic_id: string }).topic_id;
   const sessionTopic = corpus.topics.find((t) => t.topic_id === sessionTopicId);
-  const nearest = findNearestTopic(corpus, embedding);
-  let topic = sessionTopic ?? nearest.topic;
-  let similarity = sessionTopic ? 1 : nearest.similarity;
-  // If multiple runs exist for one topic, semantically rank within that group.
-  if (sessionTopic) {
-    const groupId = sessionTopic.topic_group_id ?? sessionTopic.topic_id;
-    const candidates = corpus.topics.filter(
-      (t) => (t.topic_group_id ?? t.topic_id) === groupId,
-    );
-    if (candidates.length > 1) {
-      const isInjected = condition === "injected_agent";
-      let best = candidates[0]!;
-      let bestScore = -Infinity;
-      let bestSim = -Infinity;
-      for (const c of candidates) {
-        const sim = cosine(c.topic_embedding, embedding);
-        const timeline = isInjected ? c.injected_timeline : c.vanilla_timeline;
-        const lexical = keywordCoverageScore(query, timeline.report_tokens.join(""));
-        const combined = sim + lexical;
-        if (combined > bestScore) {
-          best = c;
-          bestScore = combined;
-          bestSim = sim;
+
+  let topic: Topic;
+  let similarity: number | null;
+  if (mock) {
+    // Mock mode: no embedding call; replay the participant's assigned topic.
+    if (!sessionTopic) {
+      return NextResponse.json({ error: "assigned topic not found in corpus" }, { status: 500 });
+    }
+    topic = sessionTopic;
+    similarity = null;
+  } else {
+    let embedding: number[];
+    try {
+      embedding = await embedQuery(query, cfg.embedding_model);
+    } catch {
+      return NextResponse.json({ error: "embedding service unavailable" }, { status: 503 });
+    }
+    // The participant's assigned topic wins; fall back to the nearest topic
+    // only if the assignment isn't in the corpus.
+    const nearest = findNearestTopic(corpus, embedding);
+    topic = sessionTopic ?? nearest.topic;
+    similarity = sessionTopic ? 1 : nearest.similarity;
+    // If multiple runs exist for one topic, rank them against the query
+    // (embedding similarity + keyword coverage of the condition's report).
+    if (sessionTopic) {
+      const groupId = sessionTopic.topic_group_id ?? sessionTopic.topic_id;
+      const candidates = corpus.topics.filter(
+        (t) => (t.topic_group_id ?? t.topic_id) === groupId,
+      );
+      if (candidates.length > 1) {
+        const isInjected = condition === "injected_agent";
+        let bestScore = -Infinity;
+        for (const c of candidates) {
+          const sim = cosine(c.topic_embedding, embedding);
+          const timeline = isInjected ? c.injected_timeline : c.vanilla_timeline;
+          const combined = sim + keywordCoverageScore(query, timeline.report_tokens.join(""));
+          if (combined > bestScore) {
+            bestScore = combined;
+            topic = c;
+            similarity = sim;
+          }
         }
       }
-      topic = best;
-      similarity = bestSim;
     }
   }
+  const embeddingModelUsed = mock ? "mock" : cfg.embedding_model;
   const expectedDurationMs =
     (condition === "injected_agent"
       ? topic.injected_timeline.total_duration_ms
       : topic.vanilla_timeline.total_duration_ms) ?? 30_000;
-  const timingFactor = getTimingFactor(`${session_id}:${topic.topic_id}:${condition}`);
-  const adjustedDurationMs = Math.max(
-    5_000,
-    Math.round(expectedDurationMs * timingFactor),
-  );
 
   const { error: updateErr } = await sb
     .from("sessions")
     .update({
       matched_topic_id: topic.topic_id,
       matched_similarity: similarity,
-      embedding_model_used: cfg.embedding_model,
+      embedding_model_used: embeddingModelUsed,
       chat_model_used: cfg.chat_model,
       chat_temperature_used: cfg.chat_temperature,
     })
@@ -202,14 +184,13 @@ export async function POST(req: Request): Promise<Response> {
     payload: {
       matched_topic_id: topic.topic_id,
       similarity,
-      embedding_model: cfg.embedding_model,
+      embedding_model: embeddingModelUsed,
     },
   }).catch(() => {});
 
-  const stream_url = `/api/agent/stream?session_id=${encodeURIComponent(session_id)}`;
   return NextResponse.json({
     stream_url,
     matched_topic_id: topic.topic_id,
-    expected_duration_ms: adjustedDurationMs,
+    expected_duration_ms: expectedDurationMs,
   });
 }

@@ -16,7 +16,7 @@ export function SearchPagination(props: Props) {
       aria-label="Search pagination"
       data-testid="search-pagination"
     >
-      <span className="text-gray-600 dark:text-gray-300">Page</span>
+      <span className="text-gray-600">Page</span>
       {pages.map((p) => {
         const active = p === props.currentPage;
         return (
@@ -30,8 +30,8 @@ export function SearchPagination(props: Props) {
             }}
             className={
               active
-                ? "rounded-full bg-blue-700 px-3 py-1 text-white dark:bg-blue-600"
-                : "rounded-full px-3 py-1 text-blue-700 hover:underline disabled:text-gray-400 dark:text-blue-300 dark:disabled:text-gray-500"
+                ? "rounded-full bg-black px-3 py-1 text-white"
+                : "rounded-full px-3 py-1 text-[#1a0dab] hover:underline disabled:text-gray-400"
             }
             data-testid="search-page"
             data-page={p}

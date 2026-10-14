@@ -1,17 +1,10 @@
 import { StudyClient } from "./StudyClient";
+import { CONDITIONS, type Condition } from "@/lib/assignment";
 
 export const dynamic = "force-dynamic";
 
-const CONDITIONS = [
-  "vanilla_search",
-  "injected_search",
-  "vanilla_agent",
-  "injected_agent",
-] as const;
-type Condition = (typeof CONDITIONS)[number];
-
-function isCondition(value: string): value is Condition {
-  return (CONDITIONS as readonly string[]).includes(value);
+function isCondition(v: unknown): v is Condition {
+  return typeof v === "string" && (CONDITIONS as readonly string[]).includes(v);
 }
 
 export default async function StudyPage(props: {
@@ -29,9 +22,7 @@ export default async function StudyPage(props: {
       ? sp.parent_origin
       : undefined;
   const conditionOverride =
-    typeof sp.condition === "string" && isCondition(sp.condition)
-      ? sp.condition
-      : undefined;
+    isCondition(sp.condition) ? sp.condition : undefined;
   const previewToken =
     typeof sp.token === "string" && sp.token.length > 0 ? sp.token : undefined;
 

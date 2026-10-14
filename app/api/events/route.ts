@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { errDetail } from "@/lib/http";
 import { z } from "zod";
 import { getSupabase } from "@/lib/supabase";
 import { logEvents } from "@/lib/events";
@@ -85,7 +86,7 @@ export async function POST(req: Request): Promise<Response> {
 
   if (lookupErr) {
     return NextResponse.json(
-      { error: "failed to look up session", detail: lookupErr.message },
+      { error: "failed to look up session", detail: errDetail(lookupErr.message) },
       { status: 500 },
     );
   }
@@ -109,7 +110,7 @@ export async function POST(req: Request): Promise<Response> {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
-      { error: "failed to insert events", detail: msg },
+      { error: "failed to insert events", detail: errDetail(msg) },
       { status: 500 },
     );
   }

@@ -108,11 +108,10 @@ export async function embedTopicsFile(
 }
 
 async function main() {
-  const topicsPathArg = process.argv[2];
-  if (!topicsPathArg) {
+  const topicsPath = process.argv[2];
+  if (!topicsPath) {
     throw new Error("Usage: tsx scripts/embed_topics.ts <topics.json> [out.json]");
   }
-  const topicsPath = topicsPathArg;
   const outPath = process.argv[3] ?? topicsPath;
   await embedTopicsFile(topicsPath, outPath);
 }

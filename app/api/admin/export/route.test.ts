@@ -10,8 +10,10 @@ const state: {
   table: null,
 };
 
+const adminApi = vi.hoisted(() => ({ enabled: true }));
+
 vi.mock("@/lib/env", () => ({
-  loadEnv: () => ({ ADMIN_TOKEN: "admin-token-12345" }),
+  loadEnv: () => ({ ADMIN_TOKEN: "admin-token-12345", ADMIN_API_ENABLED: adminApi.enabled }),
 }));
 
 vi.mock("@/lib/supabase", () => ({
@@ -40,9 +42,21 @@ beforeEach(() => {
   state.rows = [];
   state.error = null;
   state.table = null;
+  adminApi.enabled = true;
 });
 
 describe("GET /api/admin/export", () => {
+  it("404s when ADMIN_API_ENABLED is off, even with a valid token", async () => {
+    adminApi.enabled = false;
+    const { GET } = await import("./route");
+    const res = await GET(
+      new Request("http://test.local/api/admin/export?table=events&format=csv", {
+        headers: { authorization: "Bearer admin-token-12345" },
+      }),
+    );
+    expect(res.status).toBe(404);
+  });
+
   it("requires admin auth", async () => {
     const { GET } = await import("./route");
     const res = await GET(req("table=events&format=csv"));
