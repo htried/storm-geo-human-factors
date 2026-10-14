@@ -258,9 +258,10 @@ a view in **[25, 75]** as eligible.
 - On completion Qualtrics receives `study_topic_id`, for display logic on
   post-task questions about the assigned topic.
 
-Topic IDs in `TOPICS` must match corpus `topic_id`s; they are the Qualtrics
-block names (`saturday_halloween`, `golf`, …). In mock mode the 19 topics come
-from `corpus_sources/mock_topics.json` (draft topic wording, cloned seed content).
+Topic IDs in `TOPICS` must match corpus `topic_id`s (`saturday_halloween`,
+`golf`, …; mostly the Qualtrics block names). In mock mode the topics and their
+wording come from `corpus_sources/mock_topics.json` (15 core + 5 candidates),
+with cloned seed content.
 To fake slider answers in the local harness, add `&views=10,50,90,…`.
 
 Test the embed locally (a fake Qualtrics page on a different origin):

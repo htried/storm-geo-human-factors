@@ -31,15 +31,18 @@ Qualtrics.SurveyEngine.addOnload(function () {
   var MIN_VIEW = 25;
   var MAX_VIEW = 75;
 
-  // One row per topic. `id` is the topic's Qualtrics block name and must match
-  // a topic_id in the study corpus.
+  // One row per topic shown in the survey. `id` must match a topic_id in the
+  // study corpus (it's the topic's Qualtrics block name, except
+  // historical_statue_removal, whose block is "historical_statue_re").
+  // Not in the survey yet: artificial_intelligence_ai (a candidate to swap in
+  // for one of rows 16-19). To swap, change that row's id and view code.
   // `view` is the piped-text code for that topic's "What's your view on this
   // issue?" slider. Get it from any text field's Piped Text menu ->
   // Survey Question -> <the question> -> <the view statement>, and paste it
   // here. It looks like "${q://QID12/ChoiceNumericEntryValue/1}".
   var TOPICS = [
     { id: "saturday_halloween", view: "${q://QID_TOPIC_01_VIEW/ChoiceNumericEntryValue/1}" },
-    { id: "historical_statue_re", view: "${q://QID_TOPIC_02_VIEW/ChoiceNumericEntryValue/1}" },
+    { id: "historical_statue_removal", view: "${q://QID_TOPIC_02_VIEW/ChoiceNumericEntryValue/1}" },
     { id: "golf", view: "${q://QID_TOPIC_03_VIEW/ChoiceNumericEntryValue/1}" },
     { id: "cheerleading", view: "${q://QID_TOPIC_04_VIEW/ChoiceNumericEntryValue/1}" },
     { id: "churches_and_taxes", view: "${q://QID_TOPIC_05_VIEW/ChoiceNumericEntryValue/1}" },

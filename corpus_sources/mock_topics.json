@@ -1,18 +1,18 @@
 {
-  "_comment": "Mock-mode topics. topic_id = the Qualtrics block name. topic_text values are DRAFT wordings (Claude-written, ProCon-style) to be replaced with the survey's exact statements. Entries without their own corpus_sources/<topic_id>/ directory are cloned from clone_from's timelines when building the mock corpus (npm run build:corpus:mock). IDs must match the TOPICS list in docs/qualtrics/question.js.",
+  "_comment": "Mock-mode topics: the 15 core topics plus the 5 candidates for slots 16-20 (one may be swapped out). topic_id and topic_text come from the team's topic list. Only IDs the survey sends (TOPICS in docs/qualtrics/question.js) can be drawn, so extra corpus topics are harmless. Entries without their own corpus_sources/<topic_id>/ directory are cloned from clone_from's timelines (npm run build:corpus:mock).",
   "clone_from": "health_scars_seed",
   "topics": [
     {
       "topic_id": "saturday_halloween",
-      "topic_text": "Should Halloween be moved to the last Saturday of October?"
+      "topic_text": "Should Halloween be moved permanently to Saturday?"
     },
     {
-      "topic_id": "historical_statue_re",
-      "topic_text": "Should historical statues of controversial figures be removed from public spaces?"
+      "topic_id": "historical_statue_removal",
+      "topic_text": "Should historic statues be taken down?"
     },
     {
       "topic_id": "golf",
-      "topic_text": "Is golf a sport?"
+      "topic_text": "Is golf a sport / are golfers athletes?"
     },
     {
       "topic_id": "cheerleading",
@@ -20,19 +20,19 @@
     },
     {
       "topic_id": "churches_and_taxes",
-      "topic_text": "Should churches remain tax-exempt?"
+      "topic_text": "Should churches (and mosques, synagogues, etc.) remain tax-exempt?"
     },
     {
       "topic_id": "ride_sharing",
-      "topic_text": "Are ride-sharing services like Uber and Lyft good for society?"
+      "topic_text": "Are ride-sharing apps a benefit to society?"
     },
     {
       "topic_id": "space_colonization",
-      "topic_text": "Should humans colonize space?"
+      "topic_text": "Should we colonize space?"
     },
     {
       "topic_id": "olympics",
-      "topic_text": "Are the Olympic Games an overall benefit for their host countries and cities?"
+      "topic_text": "Is hosting the Olympics worth the cost?"
     },
     {
       "topic_id": "election_day",
@@ -40,7 +40,7 @@
     },
     {
       "topic_id": "us_pledge_of_allegiance",
-      "topic_text": "Should students have to recite the Pledge of Allegiance in school?"
+      "topic_text": "Should “under God” be in the U.S. Pledge of Allegiance?"
     },
     {
       "topic_id": "fighting_in_hockey",
@@ -48,11 +48,11 @@
     },
     {
       "topic_id": "tablets_vs_textbooks",
-      "topic_text": "Should tablets replace textbooks in K-12 schools?"
+      "topic_text": "Should tablets replace textbooks in K–12 schools?"
     },
     {
       "topic_id": "reparations_for_slavery",
-      "topic_text": "Should the US government pay reparations for slavery?"
+      "topic_text": "Should the U.S. pay reparations to descendants of slaves?"
     },
     {
       "topic_id": "zoos",
@@ -60,23 +60,27 @@
     },
     {
       "topic_id": "video_games",
-      "topic_text": "Do violent video games contribute to youth violence?"
+      "topic_text": "Should minors play violent video games?"
     },
     {
       "topic_id": "net_neutrality",
-      "topic_text": "Should net neutrality rules be restored?"
+      "topic_text": "Are net neutrality laws good for society?"
     },
     {
       "topic_id": "mandatory_national_service",
-      "topic_text": "Should the US require mandatory national service?"
+      "topic_text": "Should the United States enact mandatory national service?"
     },
     {
       "topic_id": "cancel_culture",
       "topic_text": "Is cancel culture good for society?"
     },
     {
+      "topic_id": "artificial_intelligence_ai",
+      "topic_text": "Is artificial intelligence good for society?"
+    },
+    {
       "topic_id": "book_bans",
-      "topic_text": "Should books be banned from school libraries?"
+      "topic_text": "Should parents or other adults be able to ban books from schools and libraries?"
     }
   ]
 }
