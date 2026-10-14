@@ -11,7 +11,8 @@
  *      question (piped text only resolves for answers already submitted).
  *   3. Add a "Text / Graphic" question to its own block, then
  *      Question behavior -> JavaScript -> paste this whole file.
- *   4. Set STUDY_ORIGIN below, and fill in TOPICS (see below).
+ *   4. STUDY_ORIGIN and TOPICS below are already set for this survey and the
+ *      production deployment; paste as-is.
  *   5. Survey flow: after this block, branch on study_eligible = 0 if
  *      screened-out participants should skip the post-task questions, and use
  *      study_topic_id in display logic to ask about the assigned topic.
@@ -26,7 +27,7 @@
  * responses without carrying any direct identifier.
  */
 Qualtrics.SurveyEngine.addOnload(function () {
-  var STUDY_ORIGIN = "https://REPLACE-WITH-STUDY-HOST";
+  var STUDY_ORIGIN = "https://storm-geo-human-factors.vercel.app";
   var AUTO_ADVANCE = true;
   var MIN_VIEW = 25;
   var MAX_VIEW = 75;

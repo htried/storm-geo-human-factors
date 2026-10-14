@@ -58,9 +58,9 @@
     };
 
     fetch("question.js").then(function (r) { return r.text(); }).then(function (src) {
-      // Emulate Qualtrics piped text + the researcher's STUDY_ORIGIN edit.
+      // Emulate Qualtrics piped text, and point STUDY_ORIGIN at ?study=.
       src = src.replace("${e://Field/ResponseID}", RID)
-               .replace("https://REPLACE-WITH-STUDY-HOST", STUDY)
+               .replace("https://storm-geo-human-factors.vercel.app", STUDY)
                .replace(/\$\{q:\/\/QID\w+\/ChoiceNumericEntryValue\/\d+\}/g, function () {
                  // Fill slider answers in TOPICS order.
                  var v = VIEWS[viewIdx++];
