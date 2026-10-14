@@ -37,29 +37,29 @@ Qualtrics.SurveyEngine.addOnload(function () {
   // Not in the survey yet: artificial_intelligence_ai (a candidate to swap in
   // for one of rows 16-19). To swap, change that row's id and view code.
   // `view` is the piped-text code for that topic's "What's your view on this
-  // issue?" slider. Get it from any text field's Piped Text menu ->
-  // Survey Question -> <the question> -> <the view statement>, and paste it
-  // here. It looks like "${q://QID12/ChoiceNumericEntryValue/1}".
+  // issue?" slider (Piped Text menu -> Survey Question -> <the question> ->
+  // <the view statement>). QIDs are from this survey; the trailing /1 assumes
+  // the view item is the question's first statement.
   var TOPICS = [
-    { id: "saturday_halloween", view: "${q://QID_TOPIC_01_VIEW/ChoiceNumericEntryValue/1}" },
-    { id: "historical_statue_removal", view: "${q://QID_TOPIC_02_VIEW/ChoiceNumericEntryValue/1}" },
-    { id: "golf", view: "${q://QID_TOPIC_03_VIEW/ChoiceNumericEntryValue/1}" },
-    { id: "cheerleading", view: "${q://QID_TOPIC_04_VIEW/ChoiceNumericEntryValue/1}" },
-    { id: "churches_and_taxes", view: "${q://QID_TOPIC_05_VIEW/ChoiceNumericEntryValue/1}" },
-    { id: "ride_sharing", view: "${q://QID_TOPIC_06_VIEW/ChoiceNumericEntryValue/1}" },
-    { id: "space_colonization", view: "${q://QID_TOPIC_07_VIEW/ChoiceNumericEntryValue/1}" },
-    { id: "olympics", view: "${q://QID_TOPIC_08_VIEW/ChoiceNumericEntryValue/1}" },
-    { id: "election_day", view: "${q://QID_TOPIC_09_VIEW/ChoiceNumericEntryValue/1}" },
-    { id: "us_pledge_of_allegiance", view: "${q://QID_TOPIC_10_VIEW/ChoiceNumericEntryValue/1}" },
-    { id: "fighting_in_hockey", view: "${q://QID_TOPIC_11_VIEW/ChoiceNumericEntryValue/1}" },
-    { id: "tablets_vs_textbooks", view: "${q://QID_TOPIC_12_VIEW/ChoiceNumericEntryValue/1}" },
-    { id: "reparations_for_slavery", view: "${q://QID_TOPIC_13_VIEW/ChoiceNumericEntryValue/1}" },
-    { id: "zoos", view: "${q://QID_TOPIC_14_VIEW/ChoiceNumericEntryValue/1}" },
-    { id: "video_games", view: "${q://QID_TOPIC_15_VIEW/ChoiceNumericEntryValue/1}" },
-    { id: "net_neutrality", view: "${q://QID_TOPIC_16_VIEW/ChoiceNumericEntryValue/1}" },
-    { id: "mandatory_national_service", view: "${q://QID_TOPIC_17_VIEW/ChoiceNumericEntryValue/1}" },
-    { id: "cancel_culture", view: "${q://QID_TOPIC_18_VIEW/ChoiceNumericEntryValue/1}" },
-    { id: "book_bans", view: "${q://QID_TOPIC_19_VIEW/ChoiceNumericEntryValue/1}" }
+    { id: "saturday_halloween", view: "${q://QID36/ChoiceNumericEntryValue/1}" },
+    { id: "historical_statue_removal", view: "${q://QID38/ChoiceNumericEntryValue/1}" },
+    { id: "golf", view: "${q://QID39/ChoiceNumericEntryValue/1}" },
+    { id: "cheerleading", view: "${q://QID40/ChoiceNumericEntryValue/1}" },
+    { id: "churches_and_taxes", view: "${q://QID41/ChoiceNumericEntryValue/1}" },
+    { id: "ride_sharing", view: "${q://QID42/ChoiceNumericEntryValue/1}" },
+    { id: "space_colonization", view: "${q://QID43/ChoiceNumericEntryValue/1}" },
+    { id: "olympics", view: "${q://QID44/ChoiceNumericEntryValue/1}" },
+    { id: "election_day", view: "${q://QID45/ChoiceNumericEntryValue/1}" },
+    { id: "us_pledge_of_allegiance", view: "${q://QID46/ChoiceNumericEntryValue/1}" },
+    { id: "fighting_in_hockey", view: "${q://QID47/ChoiceNumericEntryValue/1}" },
+    { id: "tablets_vs_textbooks", view: "${q://QID48/ChoiceNumericEntryValue/1}" },
+    { id: "reparations_for_slavery", view: "${q://QID49/ChoiceNumericEntryValue/1}" },
+    { id: "zoos", view: "${q://QID50/ChoiceNumericEntryValue/1}" },
+    { id: "video_games", view: "${q://QID51/ChoiceNumericEntryValue/1}" },
+    { id: "net_neutrality", view: "${q://QID52/ChoiceNumericEntryValue/1}" },
+    { id: "mandatory_national_service", view: "${q://QID53/ChoiceNumericEntryValue/1}" },
+    { id: "cancel_culture", view: "${q://QID54/ChoiceNumericEntryValue/1}" },
+    { id: "book_bans", view: "${q://QID55/ChoiceNumericEntryValue/1}" }
   ];
 
   var q = this; // eslint-disable-line @typescript-eslint/no-this-alias -- Qualtrics runs plain ES5
