@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import {
   postComplete,
+  postIneligible,
   setParentOrigin,
   useHeartbeat,
   useResizeObserver,
@@ -30,6 +31,11 @@ const SessionResponseSchema = z.object({
 });
 type SessionResponse = z.infer<typeof SessionResponseSchema>;
 
+const IneligibleResponseSchema = z.object({
+  eligible: z.literal(false),
+  reason: z.string(),
+});
+
 const CompleteResponseSchema = z.object({
   session_id: z.string().min(1),
   completion_code: z.string().min(1),
@@ -38,6 +44,7 @@ const CompleteResponseSchema = z.object({
 
 type Stage =
   | { stage: "loading" }
+  | { stage: "ineligible" }
   | { stage: "consent"; session: SessionResponse }
   | { stage: "active"; session: SessionResponse }
   | {
@@ -53,7 +60,10 @@ export function StudyClient(props: {
   parentOrigin?: string;
   initialConditionOverride?: Condition;
   previewToken?: string;
+  eligibleTopics?: string[];
 }) {
+  // Stable primitive for the effect deps (arrays from props are new objects).
+  const eligibleKey = props.eligibleTopics?.join(",");
   const {
     initialParticipantId,
     initialTopicId,
@@ -111,6 +121,8 @@ export function StudyClient(props: {
             participant_id: participantId,
             topic_id: initialTopicId,
             condition_override: initialConditionOverride,
+            eligible_topics:
+              eligibleKey === undefined ? undefined : eligibleKey ? eligibleKey.split(",") : [],
             user_agent:
               typeof navigator !== "undefined"
                 ? navigator.userAgent
@@ -123,6 +135,13 @@ export function StudyClient(props: {
         if (!res.ok) {
           const err = (rawBody as { error?: string }).error;
           throw new Error(err || `session create failed (${res.status})`);
+        }
+        const ineligible = IneligibleResponseSchema.safeParse(rawBody);
+        if (ineligible.success) {
+          if (cancelled) return;
+          postIneligible({ participant_id: participantId, reason: ineligible.data.reason });
+          setState({ stage: "ineligible" });
+          return;
         }
         const parsed = SessionResponseSchema.safeParse(rawBody);
         if (!parsed.success) {
@@ -145,7 +164,7 @@ export function StudyClient(props: {
     return () => {
       cancelled = true;
     };
-  }, [participantId, initialTopicId, initialConditionOverride, previewToken]);
+  }, [participantId, initialTopicId, initialConditionOverride, previewToken, eligibleKey]);
 
   const handleConsent = useCallback(() => {
     if (state.stage !== "consent") return;
@@ -182,6 +201,7 @@ export function StudyClient(props: {
       }
       postComplete({
         participant_id: participantId,
+        topic_id: state.session.topic_id,
         completion_code: parsed.data.completion_code,
         duration_ms: parsed.data.duration_ms,
       });
@@ -225,6 +245,13 @@ export function StudyClient(props: {
       )}
 
       {state.stage === "error" && <ErrorPanel message={state.message} />}
+
+      {state.stage === "ineligible" && (
+        <section className="space-y-2" data-testid="ineligible-panel">
+          <p>Thanks! There&apos;s no additional task for you in this part of the survey.</p>
+          <p className="text-sm text-gray-600">Please continue with the survey.</p>
+        </section>
+      )}
 
       {state.stage === "active" && (
         <ActiveCondition

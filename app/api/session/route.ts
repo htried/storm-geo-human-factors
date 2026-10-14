@@ -13,6 +13,7 @@ import { verifyPreviewToken } from "@/lib/preview-token";
 import { hasAdminBearer } from "@/lib/admin-auth";
 import { loadCorpus } from "@/lib/corpus";
 import { getAppConfig } from "@/lib/config";
+import { selectTopic } from "@/lib/topic-selection";
 
 const BodySchema = z.object({
   // Qualtrics ResponseID (R_xxx) / Prolific PID style; reject anything else.
@@ -22,6 +23,12 @@ const BodySchema = z.object({
     .max(128)
     .regex(/^[A-Za-z0-9_.:-]+$/, "participant_id has unexpected characters"),
   topic_id: z.string().min(1).optional(),
+  // Topic IDs where the participant's pre-task view was in [25, 75], computed
+  // by the survey. [] means none qualified (screen out).
+  eligible_topics: z
+    .array(z.string().min(1).max(128).regex(/^[A-Za-z0-9_.:-]+$/))
+    .max(100)
+    .optional(),
   condition_override: z.enum(CONDITIONS).optional(),
   user_agent: z.string().optional(),
   referrer: z.string().optional(),
@@ -130,21 +137,29 @@ export async function POST(req: Request): Promise<Response> {
     assigned_by = "hash";
   }
 
-  let topic_id = body.topic_id;
-  if (!topic_id) {
-    if (corpus.topics.length === 0) {
-      return NextResponse.json(
-        { error: "no topics available in corpus" },
-        { status: 500 },
-      );
+  const selected = selectTopic({
+    corpusTopicIds: corpus.topics.map((t) => t.topic_id),
+    explicitTopicId: body.topic_id,
+    eligibleTopics: body.eligible_topics,
+  });
+  if (!selected.ok) {
+    switch (selected.reason) {
+      case "no_eligible_topics":
+        // Not an error: the participant has no undecided topic. Nothing is
+        // written; the client tells the survey to branch past the task.
+        return NextResponse.json({ eligible: false, reason: selected.reason });
+      case "eligible_topics_not_in_corpus":
+        return badRequest("none of eligible_topics are in the corpus", {
+          unknown: selected.unknown,
+        });
+      case "unknown_topic_id":
+        return badRequest(`unknown topic_id: ${selected.topic_id}`);
+      case "empty_corpus":
+        return NextResponse.json({ error: "no topics available in corpus" }, { status: 500 });
     }
-    const idx = Math.floor(Math.random() * corpus.topics.length);
-    topic_id = corpus.topics[idx]!.topic_id;
   }
-  const topic = corpus.topics.find((t) => t.topic_id === topic_id);
-  if (!topic) {
-    return badRequest(`unknown topic_id: ${topic_id}`);
-  }
+  const topic_id = selected.topic_id;
+  const topic = corpus.topics.find((t) => t.topic_id === topic_id)!;
 
   const ip = extractClientIp(req);
   const ipHash = ip ? hashIp(ip, env.IP_HASH_SALT) : null;
@@ -180,6 +195,8 @@ export async function POST(req: Request): Promise<Response> {
         condition,
         topic_id,
         assigned_by,
+        topic_selection: selected.selection,
+        eligible_topics: selected.eligible,
         chat_model_used: cfg.chat_model,
         chat_temperature_used: cfg.chat_temperature,
         embedding_model_used: cfg.embedding_model,

@@ -1,3 +1,4 @@
+import { z } from "zod";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -81,7 +82,17 @@ export interface BuildCorpusOptions {
   embedBatch?: (texts: string[], model: string) => Promise<number[][]>;
   /** Leave topic_embedding empty (no OpenAI call). For MOCK_EXTERNAL_APIS corpora. */
   skipEmbeddings?: boolean;
+  /**
+   * Mock-only: JSON file listing placeholder topics. Entries without their
+   * own source directory are cloned from `clone_from`'s timelines.
+   */
+  mockTopicsPath?: string;
 }
+
+const MockTopicsSchema = z.object({
+  clone_from: z.string().min(1),
+  topics: z.array(z.object({ topic_id: z.string().min(1), topic_text: z.string().min(1) })),
+});
 
 export async function buildCorpus(options: BuildCorpusOptions = {}): Promise<Corpus> {
   const sourceRoot = options.sourceRoot ?? DEFAULT_SOURCE_ROOT;
@@ -99,6 +110,17 @@ export async function buildCorpus(options: BuildCorpusOptions = {}): Promise<Cor
   }
 
   const seedTopics = await Promise.all(topicDirs.map(buildTopicFromSourceDir));
+  if (options.mockTopicsPath) {
+    const mock = MockTopicsSchema.parse(
+      JSON.parse(await fs.promises.readFile(options.mockTopicsPath, "utf8")),
+    );
+    const template = seedTopics.find((t) => t.topic_id === mock.clone_from);
+    if (!template) throw new Error(`buildCorpus: clone_from topic ${mock.clone_from} not found`);
+    for (const m of mock.topics) {
+      if (seedTopics.some((t) => t.topic_id === m.topic_id)) continue;
+      seedTopics.push({ ...template, topic_id: m.topic_id, topic_text: m.topic_text });
+    }
+  }
   const unembedded = seedTopics.map((t) => ({
     ...t,
     topic_embedding: [] as number[],
@@ -136,7 +158,9 @@ async function main() {
   const skipEmbeddings = args.includes("--skip-embeddings");
   const outIdx = args.indexOf("--out");
   const outPath = outIdx >= 0 ? args[outIdx + 1] : undefined;
-  await buildCorpus({ skipEmbeddings, outPath });
+  const mockIdx = args.indexOf("--mock-topics");
+  const mockTopicsPath = mockIdx >= 0 ? args[mockIdx + 1] : undefined;
+  await buildCorpus({ skipEmbeddings, outPath, mockTopicsPath });
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

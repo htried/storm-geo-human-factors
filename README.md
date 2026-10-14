@@ -242,6 +242,26 @@ JavaScript of a Text/Graphic question (setup steps are in the file header). It:
 
 Set `ALLOWED_FRAME_ANCESTORS` to your survey's Qualtrics host.
 
+### Topic eligibility
+
+Participants rate their view on each of the candidate topics (0–100) before
+the task. The question JS fills `TOPICS` with each topic's ID and the piped
+value of its "What's your view on this issue?" slider, and treats topics with
+a view in **[25, 75]** as eligible.
+
+- No eligible topic: the study is not loaded; `study_eligible=0` and the
+  survey advances (branch on it in the survey flow).
+- Otherwise the eligible IDs (not the ratings) go to the study as
+  `?eligible=a,b,c`; `/api/session` draws one uniformly at random
+  (`lib/topic-selection.ts`) and stores `topic_selection` and
+  `eligible_topics` on the session (migration `0004`).
+- On completion Qualtrics receives `study_topic_id`, for display logic on
+  post-task questions about the assigned topic.
+
+Topic IDs in `TOPICS` must match corpus `topic_id`s. In mock mode the corpus
+has placeholder topics `topic_01`…`topic_19` (`corpus_sources/mock_topics.json`).
+To fake slider answers in the local harness, add `&views=10,50,90,…`.
+
 Test the embed locally (a fake Qualtrics page on a different origin):
 
 ```bash

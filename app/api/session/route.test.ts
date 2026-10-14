@@ -219,6 +219,33 @@ describe("POST /api/session", () => {
     expect(body.error).toMatch(/not enabled/);
   });
 
+  it("screens out (no writes) when the survey reports no eligible topics", async () => {
+    const res = await callPOST({ participant_id: "p-strong-views", eligible_topics: [] });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ eligible: false, reason: "no_eligible_topics" });
+    expect(state.calls.some((c) => c.op === "upsert")).toBe(false);
+  });
+
+  it("draws the topic from the eligible list and records how", async () => {
+    state.upsertedSessions = [{ session_id: "s-elig", condition: "x", topic_id: "topic-a" }];
+    const res = await callPOST({
+      participant_id: "p-elig",
+      eligible_topics: ["topic-a", "not-in-corpus"],
+    });
+    expect(res.status).toBe(200);
+    const row = state.calls.find((c) => c.op === "upsert" && c.table === "sessions")!
+      .args as Record<string, unknown>;
+    expect(row.topic_id).toBe("topic-a");
+    expect(row.topic_selection).toBe("eligible_random");
+    expect(row.eligible_topics).toEqual(["topic-a"]);
+  });
+
+  it("400s when none of the eligible topics exist in the corpus (config mismatch)", async () => {
+    const res = await callPOST({ participant_id: "p-mismatch", eligible_topics: ["nope"] });
+    expect(res.status).toBe(400);
+    expect(state.calls.some((c) => c.op === "upsert")).toBe(false);
+  });
+
   it("rejects participant_id with unexpected characters", async () => {
     const res = await callPOST({ participant_id: "<script>", topic_id: "topic-a" });
     expect(res.status).toBe(400);

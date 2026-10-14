@@ -6,7 +6,9 @@
   exercised exactly as in a real survey.
 
     npx serve -l 8080 docs/qualtrics     # or: python3 -m http.server 8080 -d docs/qualtrics
-    open "http://localhost:8080/harness.html?study=http://localhost:3000&rid=R_localtest1"
+    open "http://localhost:8080/harness.html?study=http://localhost:3000&rid=R_localtest1&views=10,50,90,30"
+
+  `views` fakes the 19 "view" slider answers in TOPICS order (missing = unanswered).
 
   The study must run with ALLOWED_FRAME_ANCESTORS including http://localhost:8080.
 -->
@@ -32,6 +34,7 @@
     var params = new URLSearchParams(location.search);
     var STUDY = params.get("study") || "http://localhost:3000";
     var RID = params.get("rid") || "R_localtest1";
+    var VIEWS = (params.get("views") || "").split(",");
     var log = function (m) { document.getElementById("log").textContent += m + "\n"; };
     window.embedded = {};
     var nextBtn = document.getElementById("next");
@@ -56,7 +59,11 @@
     fetch("question.js").then(function (r) { return r.text(); }).then(function (src) {
       // Emulate Qualtrics piped text + the researcher's STUDY_ORIGIN edit.
       src = src.replace("${e://Field/ResponseID}", RID)
-               .replace("https://REPLACE-WITH-STUDY-HOST", STUDY);
+               .replace("https://REPLACE-WITH-STUDY-HOST", STUDY)
+               .replace(/\$\{q:\/\/QID_TOPIC_(\d+)_VIEW\/ChoiceNumericEntryValue\/1\}/g, function (_m, n) {
+                 var v = VIEWS[Number(n) - 1];
+                 return v === undefined ? "" : v.trim();
+               });
       var s = document.createElement("script");
       s.textContent = src;
       document.body.appendChild(s);
