@@ -8,7 +8,7 @@ import { __resetCorpusForTest, loadCorpus } from "@/lib/corpus";
 import { CorpusSchema } from "@/lib/corpus-types";
 import { buildCorpus } from "./build_corpus";
 
-const HEALTH = path.join(process.cwd(), "test_data", "health_10452");
+const HEALTH = path.join(process.cwd(), "corpus_sources", "health_scars_seed", "vanilla");
 
 async function copyRunData(dstDir: string) {
   await fs.promises.mkdir(dstDir, { recursive: true });
@@ -67,6 +67,55 @@ Development-only malicious landing content.
       expect(loaded.topics[0]!.topic_id).toBe("test_seed");
     } finally {
       __resetCorpusForTest();
+      await fs.promises.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("groups runs via meta.json and filters by injection direction", async () => {
+    const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "build-corpus-"));
+    try {
+      const sourceRoot = path.join(tmpDir, "corpus_sources");
+      const mkRun = async (name: string, meta: Record<string, string>) => {
+        const dir = path.join(sourceRoot, name);
+        await fs.promises.mkdir(dir, { recursive: true });
+        await fs.promises.writeFile(path.join(dir, "topic.md"), `Should zoos exist? (${name})`, "utf8");
+        await fs.promises.writeFile(
+          path.join(dir, "malicious_source.md"),
+          `---\ntitle: "t"\nurl_slug: "s"\ndisplayed_url: "reddit.com"\nsnippet: "x"\n---\nbody\n`,
+          "utf8",
+        );
+        await fs.promises.writeFile(path.join(dir, "meta.json"), JSON.stringify(meta), "utf8");
+        await copyRunData(path.join(dir, "vanilla"));
+        await copyRunData(path.join(dir, "injected"));
+      };
+      await mkRun("zoos__pro__p00__r1", { topic_id: "zoos", topic_group_id: "zoos", injection_direction: "pro" });
+      await mkRun("zoos__pro__p01__r1", { topic_group_id: "zoos", injection_direction: "pro" });
+      await mkRun("zoos__con__p00__r1", { topic_id: "zoos", topic_group_id: "zoos", injection_direction: "con" });
+
+      const opts = {
+        sourceRoot,
+        outPath: path.join(tmpDir, "corpus.json"),
+        skipEmbeddings: true,
+      };
+      const both = await buildCorpus(opts);
+      // Dirs sort con-first, so the con primary keeps "zoos" and the pro primary is renamed.
+      expect(both.topics.map((t) => t.topic_id).sort()).toEqual([
+        "zoos",
+        "zoos__pro__p00__r1",
+        "zoos__pro__p01__r1",
+      ]);
+      expect(both.topics.every((t) => t.topic_group_id === "zoos")).toBe(true);
+      expect(new Set(both.topics.map((t) => t.injection_direction))).toEqual(new Set(["pro", "con"]));
+
+      const pro = await buildCorpus({ ...opts, direction: "pro" });
+      expect(pro.topics.map((t) => t.topic_id).sort()).toEqual(["zoos", "zoos__pro__p01__r1"]);
+      expect(pro.topics.every((t) => t.topic_group_id === "zoos")).toBe(true);
+      expect(pro.topics.every((t) => t.injection_direction === "pro")).toBe(true);
+
+      const con = await buildCorpus({ ...opts, direction: "con" });
+      expect(con.topics).toHaveLength(1);
+      expect(con.topics[0]!.injection_direction).toBe("con");
+    } finally {
       await fs.promises.rm(tmpDir, { recursive: true, force: true });
     }
   });

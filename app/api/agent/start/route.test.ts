@@ -20,6 +20,7 @@ const state: {
     topics: Array<{
       topic_id: string;
       topic_group_id?: string;
+      injection_direction?: "pro" | "con";
       topic_text: string;
       topic_embedding: number[];
       vanilla_timeline: { steps: unknown[]; report_tokens: string[]; citations: unknown[]; total_duration_ms: number };
@@ -77,12 +78,9 @@ vi.mock("@/lib/openai", () => ({
   }),
 }));
 
-vi.mock("@/lib/corpus", () => ({
+vi.mock("@/lib/corpus", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/corpus")>()),
   loadCorpus: vi.fn(async () => state.corpus),
-  findNearestTopic: vi.fn((corpus) => ({
-    topic: (corpus as { topics: Array<{ topic_id: string }> }).topics[0]!,
-    similarity: 0.88,
-  })),
   cosine: vi.fn((a: number[], b: number[]) => {
     let dot = 0;
     let na = 0;
@@ -125,7 +123,7 @@ beforeEach(() => {
   state.session = {
     session_id: "sess-agent",
     condition: "vanilla_agent",
-    topic_id: "topic-a",
+    topic_id: "topic-match",
   };
   state.sessionErr = null;
   state.updateErr = null;
@@ -171,7 +169,7 @@ describe("POST /api/agent/start", () => {
     expect(body.expected_duration_ms).toBe(12_000);
     expect(state.updatePatch).toMatchObject({
       matched_topic_id: "topic-match",
-      matched_similarity: 0.88,
+      matched_similarity: 1,
       embedding_model_used: "text-embedding-3-small",
     });
     expect(state.loggedEvents.some((e) => e.type === "agent_topic_matched")).toBe(true);
@@ -289,6 +287,104 @@ describe("POST /api/agent/start", () => {
       matched_topic_id: "topic-match",
       matched_similarity: null,
       embedding_model_used: "mock",
+    });
+  });
+
+  it("500s instead of replaying another topic when the assigned topic is missing", async () => {
+    state.session = { session_id: "sess-agent", condition: "vanilla_agent", topic_id: "topic-a" };
+    const { POST } = await import("./route");
+    const res = await POST(req({ session_id: "sess-agent", query: "q" }));
+    expect(res.status).toBe(500);
+    expect(state.updatePatch).toBeNull();
+  });
+
+  describe("pro/con-poisoned arms", () => {
+    const timeline = (n: number, words: string[] = []) => ({
+      steps: [],
+      report_tokens: words,
+      citations: [],
+      total_duration_ms: n,
+    });
+    const mal = (slug: string) => ({
+      title: slug,
+      url_slug: slug,
+      displayed_url: "reddit.com",
+      snippet: "s",
+      landing_markdown: "m",
+    });
+    beforeEach(() => {
+      state.corpus = {
+        version: "test",
+        embedding_model: "text-embedding-3-small",
+        topics: [
+          {
+            topic_id: "zoos",
+            topic_group_id: "zoos",
+            injection_direction: "con",
+            topic_text: "Should zoos exist?",
+            topic_embedding: [0.1, 0.2],
+            vanilla_timeline: timeline(10_000),
+            injected_timeline: timeline(20_000),
+            malicious_source: mal("con-thread"),
+          },
+          {
+            topic_id: "zoos__con__p01__r1",
+            topic_group_id: "zoos",
+            injection_direction: "con",
+            topic_text: "Are zoos ethical?",
+            topic_embedding: [0.2, 0.1],
+            vanilla_timeline: timeline(11_000),
+            injected_timeline: timeline(21_000),
+            malicious_source: mal("con-thread"),
+          },
+          {
+            topic_id: "zoos__pro__p00__r1",
+            topic_group_id: "zoos",
+            injection_direction: "pro",
+            topic_text: "Should zoos exist?",
+            topic_embedding: [0.2, 0.1],
+            vanilla_timeline: timeline(12_000),
+            injected_timeline: timeline(22_000, ["conservation", "breeding"]),
+            malicious_source: mal("pro-thread"),
+          },
+        ],
+      };
+    });
+
+    it("injected_agent_pro only replays runs poisoned toward pro", async () => {
+      state.session = { session_id: "sess-agent", condition: "injected_agent_pro", topic_id: "zoos" };
+      const { POST } = await import("./route");
+      const res = await POST(req({ session_id: "sess-agent", query: "zoos" }));
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { matched_topic_id: string; expected_duration_ms: number };
+      expect(body.matched_topic_id).toBe("zoos__pro__p00__r1");
+      expect(body.expected_duration_ms).toBe(22_000);
+    });
+
+    it("injected_agent_con only replays runs poisoned toward con", async () => {
+      state.session = { session_id: "sess-agent", condition: "injected_agent_con", topic_id: "zoos" };
+      const { POST } = await import("./route");
+      const res = await POST(req({ session_id: "sess-agent", query: "conservation breeding zoos" }));
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { matched_topic_id: string };
+      expect(["zoos", "zoos__con__p01__r1"]).toContain(body.matched_topic_id);
+    });
+
+    it("500s when the corpus has no runs for the session's side", async () => {
+      state.corpus.topics = state.corpus.topics.filter((t) => t.injection_direction !== "pro");
+      state.session = { session_id: "sess-agent", condition: "injected_agent_pro", topic_id: "zoos" };
+      const { POST } = await import("./route");
+      const res = await POST(req({ session_id: "sess-agent", query: "zoos" }));
+      expect(res.status).toBe(500);
+    });
+
+    it("mock mode replays a run for the session's side", async () => {
+      process.env.MOCK_EXTERNAL_APIS = "1";
+      state.session = { session_id: "sess-agent", condition: "injected_agent_pro", topic_id: "zoos" };
+      const { POST } = await import("./route");
+      const res = await POST(req({ session_id: "sess-agent", query: "anything" }));
+      const body = (await res.json()) as { matched_topic_id: string };
+      expect(body.matched_topic_id).toBe("zoos__pro__p00__r1");
     });
   });
 });

@@ -6,6 +6,7 @@ import { getAppConfig } from "@/lib/config";
 import { loadCorpus } from "@/lib/corpus";
 import { logEvent } from "@/lib/events";
 import { isMockMode, mockChatReply, tokenize } from "@/lib/mock";
+import { isAgentCondition, isInjectedCondition, type Condition } from "@/lib/assignment";
 
 const BodySchema = z.object({
   session_id: z.string().min(1),
@@ -22,7 +23,7 @@ function sse(event: string, data: unknown): Uint8Array {
 }
 
 function chooseTimeline(args: {
-  condition: "vanilla_search" | "injected_search" | "vanilla_agent" | "injected_agent";
+  condition: Condition;
   topic_id: string;
   matched_topic_id: string | null;
 }) {
@@ -30,7 +31,7 @@ function chooseTimeline(args: {
     const topicId = args.matched_topic_id || args.topic_id;
     const topic = corpus.topics.find((t) => t.topic_id === topicId);
     if (!topic) throw new Error("matched topic not found in corpus");
-    const injected = args.condition === "injected_search" || args.condition === "injected_agent";
+    const injected = isInjectedCondition(args.condition);
     const timeline = injected ? topic.injected_timeline : topic.vanilla_timeline;
     const sources = timeline.steps
       .filter((s) => s.type === "source_found")
@@ -114,11 +115,11 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const row = session as {
-    condition: "vanilla_search" | "injected_search" | "vanilla_agent" | "injected_agent";
+    condition: Condition;
     topic_id: string;
     matched_topic_id: string | null;
   };
-  if (row.condition !== "vanilla_agent" && row.condition !== "injected_agent") {
+  if (!isAgentCondition(row.condition)) {
     return new Response(JSON.stringify({ error: "session is not in an agent condition" }), {
       status: 400,
       headers: { "content-type": "application/json" },

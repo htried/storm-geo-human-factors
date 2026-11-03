@@ -22,11 +22,11 @@ describe("loadEnv", () => {
     expect(() => loadEnv()).toThrow(/SUPABASE_URL/);
   });
 
-  it("defaults ENABLED_CONDITIONS to the two agent arms", () => {
+  it("defaults ENABLED_CONDITIONS to the vanilla / pro- / con-poisoned agent arms", () => {
     clearOptional();
     Object.assign(process.env, BASE, { OPENAI_API_KEY: "x" });
     const env = loadEnv();
-    expect(env.ENABLED_CONDITIONS).toEqual(["vanilla_agent", "injected_agent"]);
+    expect(env.ENABLED_CONDITIONS).toEqual(["vanilla_agent", "injected_agent_pro", "injected_agent_con"]);
     expect(env.MOCK_EXTERNAL_APIS).toBe(false);
     expect(env.ADMIN_API_ENABLED).toBe(false);
   });

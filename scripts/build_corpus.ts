@@ -38,8 +38,31 @@ function requireAttr(attrs: Record<string, string>, key: string): string {
   return v;
 }
 
-async function buildTopicFromSourceDir(topicDir: string): Promise<Omit<Topic, "topic_embedding">> {
-  const topicId = path.basename(topicDir);
+/**
+ * Optional per-directory meta.json. Lets several run directories form one topic
+ * group (one of them carrying the study topic_id) and tags the injection side.
+ */
+const SourceMetaSchema = z
+  .object({
+    topic_id: z.string().min(1).optional(),
+    topic_group_id: z.string().min(1).optional(),
+    injection_direction: z.enum(["pro", "con"]).optional(),
+  })
+  .passthrough();
+
+type SourceMeta = z.infer<typeof SourceMetaSchema>;
+
+async function readSourceMeta(topicDir: string): Promise<SourceMeta> {
+  const metaPath = path.join(topicDir, "meta.json");
+  if (!fs.existsSync(metaPath)) return {};
+  return SourceMetaSchema.parse(JSON.parse(await fs.promises.readFile(metaPath, "utf8")));
+}
+
+async function buildTopicFromSourceDir(
+  topicDir: string,
+  meta: SourceMeta,
+): Promise<Omit<Topic, "topic_embedding">> {
+  const topicId = meta.topic_id ?? path.basename(topicDir);
   const topicText = (await fs.promises.readFile(path.join(topicDir, "topic.md"), "utf8")).trim();
 
   const malRaw = await fs.promises.readFile(path.join(topicDir, "malicious_source.md"), "utf8");
@@ -68,6 +91,8 @@ async function buildTopicFromSourceDir(topicDir: string): Promise<Omit<Topic, "t
 
   return {
     topic_id: topicId,
+    ...(meta.topic_group_id ? { topic_group_id: meta.topic_group_id } : {}),
+    ...(meta.injection_direction ? { injection_direction: meta.injection_direction } : {}),
     topic_text: topicText,
     vanilla_timeline: vanillaTimeline,
     injected_timeline: injectedTimeline,
@@ -87,6 +112,8 @@ export interface BuildCorpusOptions {
    * own source directory are cloned from `clone_from`'s timelines.
    */
   mockTopicsPath?: string;
+  /** Keep only source dirs whose meta.json injection_direction matches (untagged dirs are kept). */
+  direction?: "pro" | "con";
 }
 
 const MockTopicsSchema = z.object({
@@ -109,7 +136,33 @@ export async function buildCorpus(options: BuildCorpusOptions = {}): Promise<Cor
     throw new Error(`buildCorpus: no topic directories under ${sourceRoot}`);
   }
 
-  const seedTopics = await Promise.all(topicDirs.map(buildTopicFromSourceDir));
+  const metas = await Promise.all(topicDirs.map(readSourceMeta));
+  const selected = topicDirs
+    .map((dir, i) => ({ dir, meta: metas[i]! }))
+    .filter(
+      ({ meta }) =>
+        !options.direction ||
+        !meta.injection_direction ||
+        meta.injection_direction === options.direction,
+    );
+  const seedTopics = await Promise.all(
+    selected.map(({ dir, meta }) => buildTopicFromSourceDir(dir, meta)),
+  );
+  // A combined (pro + con) corpus has one primary per side claiming the study topic_id.
+  // The first keeps it; the other side's primary falls back to its directory name and
+  // stays in the group, which is how the start route finds it.
+  const seen = new Map<string, string | undefined>();
+  seedTopics.forEach((t, i) => {
+    const prevDirection = seen.get(t.topic_id);
+    if (seen.has(t.topic_id)) {
+      const otherSide =
+        t.injection_direction && prevDirection && t.injection_direction !== prevDirection;
+      if (!otherSide) throw new Error(`buildCorpus: duplicate topic_id ${t.topic_id}`);
+      t.topic_id = path.basename(selected[i]!.dir);
+      if (seen.has(t.topic_id)) throw new Error(`buildCorpus: duplicate topic_id ${t.topic_id}`);
+    }
+    seen.set(t.topic_id, t.injection_direction);
+  });
   if (options.mockTopicsPath) {
     const mock = MockTopicsSchema.parse(
       JSON.parse(await fs.promises.readFile(options.mockTopicsPath, "utf8")),
@@ -139,6 +192,8 @@ export async function buildCorpus(options: BuildCorpusOptions = {}): Promise<Cor
     embedding_model: embeddingModel,
     topics: embedded.map((t) => ({
       topic_id: t.topic_id,
+      ...(t.topic_group_id ? { topic_group_id: t.topic_group_id } : {}),
+      ...(t.injection_direction ? { injection_direction: t.injection_direction } : {}),
       topic_text: t.topic_text,
       topic_embedding: t.topic_embedding ?? [],
       vanilla_timeline: t.vanilla_timeline,
@@ -160,7 +215,11 @@ async function main() {
   const outPath = outIdx >= 0 ? args[outIdx + 1] : undefined;
   const mockIdx = args.indexOf("--mock-topics");
   const mockTopicsPath = mockIdx >= 0 ? args[mockIdx + 1] : undefined;
-  await buildCorpus({ skipEmbeddings, outPath, mockTopicsPath });
+  const rootIdx = args.indexOf("--source-root");
+  const sourceRoot = rootIdx >= 0 ? path.resolve(args[rootIdx + 1]!) : undefined;
+  const dirIdx = args.indexOf("--direction");
+  const direction = dirIdx >= 0 ? z.enum(["pro", "con"]).parse(args[dirIdx + 1]) : undefined;
+  await buildCorpus({ skipEmbeddings, outPath, mockTopicsPath, sourceRoot, direction });
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

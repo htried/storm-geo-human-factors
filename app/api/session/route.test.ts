@@ -99,7 +99,8 @@ const FAKE_CORPUS = {
   ],
 };
 
-vi.mock("@/lib/corpus", () => ({
+vi.mock("@/lib/corpus", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/corpus")>()),
   loadCorpus: async () => FAKE_CORPUS,
 }));
 
@@ -165,7 +166,7 @@ async function callPOST(
 }
 
 describe("POST /api/session", () => {
-  it("assigns only among ENABLED_CONDITIONS (default: the two agent arms)", async () => {
+  it("assigns only among ENABLED_CONDITIONS (default: vanilla / pro- / con-poisoned agent)", async () => {
     const { assignCondition } = await import("@/lib/assignment");
     const seen = new Set<string>();
     for (let i = 0; i < 40; i++) {
@@ -177,13 +178,12 @@ describe("POST /api/session", () => {
       expect(res.status).toBe(200);
       const row = state.calls.find((c) => c.op === "upsert" && c.table === "sessions")!
         .args as Record<string, unknown>;
-      expect(["vanilla_agent", "injected_agent"]).toContain(row.condition);
-      expect(row.condition).toBe(
-        assignCondition(`p-arm-${i}`, TEST_ENV.ASSIGN_SECRET, ["vanilla_agent", "injected_agent"]),
-      );
+      const arms = ["vanilla_agent", "injected_agent_pro", "injected_agent_con"] as const;
+      expect(arms).toContain(row.condition);
+      expect(row.condition).toBe(assignCondition(`p-arm-${i}`, TEST_ENV.ASSIGN_SECRET, arms));
       seen.add(row.condition as string);
     }
-    expect(seen.size).toBe(2);
+    expect(seen.size).toBe(3);
   });
 
   it("can re-enable the search arms via ENABLED_CONDITIONS", async () => {
@@ -268,12 +268,8 @@ describe("POST /api/session", () => {
     expect(body.session_id).toBe("00000000-0000-0000-0000-000000000001");
     expect(body.topic_id).toBe("topic-a");
     expect(body.topic_text).toBe("Topic A prompt");
-    expect([
-      "vanilla_search",
-      "injected_search",
-      "vanilla_agent",
-      "injected_agent",
-    ]).toContain(body.condition);
+    const { CONDITIONS } = await import("@/lib/assignment");
+    expect(CONDITIONS).toContain(body.condition);
 
     const upsertSession = state.calls.find(
       (c) => c.op === "upsert" && c.table === "sessions",
@@ -360,7 +356,7 @@ describe("POST /api/session", () => {
     state.upsertedSessions = [
       {
         session_id: "22222222-2222-2222-2222-222222222222",
-        condition: "injected_agent",
+        condition: "injected_agent_pro",
         topic_id: "topic-a",
       },
     ];
@@ -368,20 +364,20 @@ describe("POST /api/session", () => {
       {
         participant_id: "p-researcher",
         topic_id: "topic-a",
-        condition_override: "injected_agent",
+        condition_override: "injected_agent_pro",
       },
       { authorization: "Bearer admin-token-12345" },
     );
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.condition).toBe("injected_agent");
+    expect(body.condition).toBe("injected_agent_pro");
     const upsertSession = state.calls.find(
       (c) => c.op === "upsert" && c.table === "sessions",
     );
     expect(upsertSession).toBeDefined();
     const row = upsertSession!.args as Record<string, unknown>;
     expect(row.assigned_by).toBe("researcher_override");
-    expect(row.condition).toBe("injected_agent");
+    expect(row.condition).toBe("injected_agent_pro");
   });
 
   it("accepts condition_override with a valid signed preview token query param", async () => {

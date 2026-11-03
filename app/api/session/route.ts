@@ -11,7 +11,7 @@ import {
 } from "@/lib/assignment";
 import { verifyPreviewToken } from "@/lib/preview-token";
 import { hasAdminBearer } from "@/lib/admin-auth";
-import { loadCorpus } from "@/lib/corpus";
+import { loadCorpus, studyTopicIds } from "@/lib/corpus";
 import { getAppConfig } from "@/lib/config";
 import { selectTopic } from "@/lib/topic-selection";
 
@@ -138,7 +138,8 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const selected = selectTopic({
-    corpusTopicIds: corpus.topics.map((t) => t.topic_id),
+    // One ID per study topic; per-run variants in a topic group are never assigned directly.
+    corpusTopicIds: studyTopicIds(corpus),
     explicitTopicId: body.topic_id,
     eligibleTopics: body.eligible_topics,
   });

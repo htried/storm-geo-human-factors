@@ -30,11 +30,11 @@ describe("Qualtrics question script", () => {
     expect(stray).toEqual([]);
   });
 
-  it("maps 19 topics to distinct slider QIDs", () => {
+  it("maps the 7 study topics to distinct slider QIDs", () => {
     const src = fs.readFileSync(SCRIPT, "utf8");
     const rows = [...src.matchAll(/\{ id: "([a-z_]+)", view: "\$\{q:\/\/(QID\d+)\//g)];
-    expect(rows).toHaveLength(19);
-    expect(new Set(rows.map((r) => r[1])).size).toBe(19);
-    expect(new Set(rows.map((r) => r[2])).size).toBe(19);
+    expect(rows).toHaveLength(7);
+    expect(new Set(rows.map((r) => r[1])).size).toBe(7);
+    expect(new Set(rows.map((r) => r[2])).size).toBe(7);
   });
 });

@@ -1,13 +1,15 @@
 import { createHmac } from "node:crypto";
 
-export const CONDITIONS = [
-  "vanilla_search",
-  "injected_search",
-  "vanilla_agent",
-  "injected_agent",
-] as const;
+import { CONDITIONS, type Condition } from "./conditions";
 
-export type Condition = (typeof CONDITIONS)[number];
+export {
+  AGENT_CONDITIONS,
+  CONDITIONS,
+  injectionDirectionOf,
+  isAgentCondition,
+  isInjectedCondition,
+  type Condition,
+} from "./conditions";
 
 /**
  * Deterministically assign a participant to one of `enabled` (defaults to all
