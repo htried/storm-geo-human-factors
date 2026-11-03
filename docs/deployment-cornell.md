@@ -79,14 +79,21 @@ study URL can create junk sessions. Filter analysis to sessions whose
 Set in Project → Settings → Environment Variables (Production *and* Preview):
 
 ```
-ENABLED_CONDITIONS=vanilla_agent,injected_agent
-MOCK_EXTERNAL_APIS=1            # until topics are final
+ENABLED_CONDITIONS=vanilla_agent,injected_agent_pro,injected_agent_con
+CORPUS_PATH=app/data/corpus.procon.json   # committed ProCon corpus (7 topics, pro+con)
+MOCK_EXTERNAL_APIS=0
+OPENAI_API_KEY=...              # query embeddings + follow-up chat; mark "Sensitive"
 ALLOWED_FRAME_ANCESTORS=https://<your-cornell-qualtrics-host>
 SUPABASE_URL=...
 SUPABASE_SERVICE_ROLE_KEY=...   # mark "Sensitive"
 ASSIGN_SECRET / INJECT_SECRET / ADMIN_TOKEN / IP_HASH_SALT   # mark "Sensitive"
 ADMIN_API_ENABLED=0
 ```
+
+Before deploying the pro/con arms, apply `supabase/migrations/0005_directional_injection.sql`
+to every Supabase project the deployment uses (Production and Preview). Without it the
+`sessions.condition` check rejects `injected_agent_pro` / `injected_agent_con` and new
+sessions fail to insert. Run `npm run verify:corpus` before shipping a rebuilt corpus.
 
 Use a **separate Supabase project for Preview deployments** so test traffic
 never lands in the production dataset. Do not enable Vercel Deployment

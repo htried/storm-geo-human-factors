@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { getSupabase } from "@/lib/supabase";
 import { logEvent } from "@/lib/events";
+import { isAgentCondition } from "@/lib/assignment";
 
 const BodySchema = z.object({
   session_id: z.string().min(1),
@@ -43,7 +44,7 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json({ error: "unknown session" }, { status: 404 });
   }
   const condition = (session as { condition: string }).condition;
-  if (condition !== "vanilla_agent" && condition !== "injected_agent") {
+  if (!isAgentCondition(condition)) {
     return badRequest("session is not in an agent condition");
   }
 

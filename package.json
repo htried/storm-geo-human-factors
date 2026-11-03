@@ -11,6 +11,10 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "build:corpus": "tsx scripts/build_corpus.ts",
+    "build:corpus:procon": "tsx --env-file=.env scripts/build_corpus.ts --source-root corpus_sources_procon --out app/data/corpus.procon.json",
+    "verify:corpus": "tsx scripts/verify_corpus.ts",
+    "build:corpus:procon:pro": "tsx --env-file=.env scripts/build_corpus.ts --source-root corpus_sources_procon --direction pro --out app/data/corpus.procon_pro.json",
+    "build:corpus:procon:con": "tsx --env-file=.env scripts/build_corpus.ts --source-root corpus_sources_procon --direction con --out app/data/corpus.procon_con.json",
     "build:corpus:mock": "tsx scripts/build_corpus.ts --skip-embeddings --mock-topics corpus_sources/mock_topics.json --out app/data/corpus.mock.json",
     "preview:replay": "tsx scripts/preview_replay.ts"
   },

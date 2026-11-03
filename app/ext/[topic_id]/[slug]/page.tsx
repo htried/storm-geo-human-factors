@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import { loadCorpus } from "@/lib/corpus";
+import { loadCorpus, topicGroupId } from "@/lib/corpus";
 import { LogVisitBeacon } from "./LogVisitBeacon";
 
 interface PageProps {
@@ -15,10 +15,13 @@ export default async function ExtLandingPage({ params }: PageProps) {
   const { topic_id, slug } = await params;
 
   const corpus = await loadCorpus();
-  const topic = corpus.topics.find((t) => t.topic_id === topic_id);
+  // Pro- and con-poisoned runs share a topic group but have different sources, so
+  // resolve the page by (group, slug) rather than by the group's primary entry.
+  const topic = corpus.topics.find(
+    (t) => topicGroupId(t) === topic_id && t.malicious_source?.url_slug === slug,
+  );
   if (!topic) notFound();
   const mal = topic.malicious_source;
-  if (!mal || mal.url_slug !== slug) notFound();
 
   return (
     <div className="min-h-screen bg-white text-gray-900">

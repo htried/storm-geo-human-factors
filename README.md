@@ -258,6 +258,13 @@ a view in **[25, 75]** as eligible.
 - On completion Qualtrics receives `study_topic_id`, for display logic on
   post-task questions about the assigned topic.
 
+Study arms: participants are randomized in equal thirds (HMAC of the participant ID)
+between `vanilla_agent`, `injected_agent_pro` and `injected_agent_con`. A pro/con arm
+replays only runs whose Reddit-thread injection pushed toward that side
+(`injection_direction` in the corpus). The corpus is `app/data/corpus.procon.json`, built by
+`geo_storm/experiments/procon_injection/f_package_ui.py --only-cited --max-per-paraphrase 2`
+then `npm run build:corpus:procon && npm run verify:corpus`.
+
 Topic IDs in `TOPICS` must match corpus `topic_id`s (`saturday_halloween`,
 `golf`, …; mostly the Qualtrics block names). In mock mode the topics and their
 wording come from `corpus_sources/mock_topics.json` (15 core + 5 candidates),

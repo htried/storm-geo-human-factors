@@ -257,3 +257,7 @@ app/data/corpus.json
 /test-results/
 /playwright-report/
 /test_data
+
+# ProCon pro/con injection runs packaged from geo_storm (large; rebuild with experiments/procon_injection/f_package_ui.py)
+corpus_sources_procon/
+app/data/corpus.procon_*.json

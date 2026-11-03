@@ -73,6 +73,8 @@ export type MaliciousSource = z.infer<typeof MaliciousSourceSchema>;
 export const TopicSchema = z.object({
   topic_id: z.string().min(1),
   topic_group_id: z.string().min(1).optional(),
+  /** Which side the injected run was pushed toward (ProCon pro/con injection corpora). */
+  injection_direction: z.enum(["pro", "con"]).optional(),
   topic_text: z.string(),
   topic_embedding: z.array(z.number()),
   vanilla_timeline: TimelineSchema,

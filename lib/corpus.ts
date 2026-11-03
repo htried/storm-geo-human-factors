@@ -3,6 +3,31 @@ import path from "node:path";
 import { isMockMode } from "./mock";
 import { CorpusSchema, type Corpus, type Topic } from "./corpus-types";
 
+/** A topic's study-level ID: several replayable runs can share one group. */
+export function topicGroupId(t: Pick<Topic, "topic_id" | "topic_group_id">): string {
+  return t.topic_group_id ?? t.topic_id;
+}
+
+/** Study topics a session can be assigned: one per group (not per-run variants). */
+export function studyTopicIds(corpus: Corpus): string[] {
+  return corpus.topics.filter((t) => topicGroupId(t) === t.topic_id).map((t) => t.topic_id);
+}
+
+/**
+ * Runs that may be replayed for a session on `groupId`. With a `direction`, only runs
+ * whose injection pushed toward that side; corpora without direction tags are
+ * returned whole so older single-side corpora keep working.
+ */
+export function groupCandidates(
+  corpus: Corpus,
+  groupId: string,
+  direction?: "pro" | "con",
+): Topic[] {
+  const group = corpus.topics.filter((t) => topicGroupId(t) === groupId);
+  if (!direction || !group.some((t) => t.injection_direction)) return group;
+  return group.filter((t) => t.injection_direction === direction);
+}
+
 export function cosine(a: readonly number[], b: readonly number[]): number {
   if (a.length !== b.length) throw new Error("vector length mismatch");
   let dot = 0,

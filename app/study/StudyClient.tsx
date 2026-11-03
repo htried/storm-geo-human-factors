@@ -14,13 +14,9 @@ import { VanillaSearch } from "./_conditions/VanillaSearch";
 import { InjectedSearch } from "./_conditions/InjectedSearch";
 import { VanillaAgent } from "./_conditions/VanillaAgent";
 import { InjectedAgent } from "./_conditions/InjectedAgent";
+import { CONDITIONS } from "@/lib/conditions";
 
-const ConditionValues = [
-  "vanilla_search",
-  "injected_search",
-  "vanilla_agent",
-  "injected_agent",
-] as const;
+const ConditionValues = CONDITIONS;
 type Condition = (typeof ConditionValues)[number];
 
 const SessionResponseSchema = z.object({
@@ -348,6 +344,9 @@ function ActiveCondition(
     case "vanilla_agent":
       return <VanillaAgent {...common} />;
     case "injected_agent":
+    case "injected_agent_pro":
+    case "injected_agent_con":
+      // Same UI; the server replays a run poisoned toward the session's side.
       return <InjectedAgent {...common} />;
   }
 }

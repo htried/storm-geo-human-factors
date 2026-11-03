@@ -5,13 +5,15 @@ import { CONDITIONS, type Condition } from "./assignment";
 const emptyToUndefined = (v: unknown) => (v === "" ? undefined : v);
 
 /**
- * Default study arms: the two AI-overview (agent) conditions only. The
- * traditional-search arms stay in the codebase and can be re-enabled by
- * listing them in ENABLED_CONDITIONS.
+ * Default study arms: AI-overview (agent) only, randomized three ways between an
+ * unpoisoned agent and an agent poisoned toward the pro or the con side. The
+ * traditional-search arms and the side-agnostic `injected_agent` stay in the
+ * codebase and can be re-enabled by listing them in ENABLED_CONDITIONS.
  */
 export const DEFAULT_ENABLED_CONDITIONS: readonly Condition[] = [
   "vanilla_agent",
-  "injected_agent",
+  "injected_agent_pro",
+  "injected_agent_con",
 ];
 
 const EnabledConditionsSchema = z.preprocess(

@@ -5,6 +5,7 @@ import { getSupabase } from "@/lib/supabase";
 import { loadCorpus } from "@/lib/corpus";
 import { buildSampleTimeline, SAMPLE_MATCHED_TOPIC_ID } from "@/lib/agent-sample";
 import type { Timeline } from "@/lib/corpus-types";
+import { isAgentCondition, isInjectedCondition, type Condition } from "@/lib/assignment";
 
 const QuerySchema = z.object({
   session_id: z.string().min(1),
@@ -32,11 +33,11 @@ export async function GET(req: Request): Promise<Response> {
   if (!session) return asError(404, "unknown session");
 
   const row = session as {
-    condition: "vanilla_search" | "injected_search" | "vanilla_agent" | "injected_agent";
+    condition: Condition;
     topic_id: string;
     matched_topic_id: string | null;
   };
-  if (row.condition !== "vanilla_agent" && row.condition !== "injected_agent") {
+  if (!isAgentCondition(row.condition)) {
     return asError(400, "session is not in an agent condition");
   }
 
@@ -49,7 +50,7 @@ export async function GET(req: Request): Promise<Response> {
     const topic = corpus.topics.find((t) => t.topic_id === topicId);
     if (!topic) return asError(500, "matched topic not found in corpus");
     timeline =
-      row.condition === "injected_agent"
+      isInjectedCondition(row.condition)
         ? topic.injected_timeline
         : topic.vanilla_timeline;
   }

@@ -4,6 +4,7 @@ import type { Timeline } from "@/lib/corpus-types";
 import { logEvent } from "@/lib/events";
 import { parsePacingRange, planReplay } from "@/lib/replay-pacing";
 import { buildSampleTimeline, SAMPLE_MATCHED_TOPIC_ID } from "@/lib/agent-sample";
+import { isAgentCondition, isInjectedCondition, type Condition } from "@/lib/assignment";
 
 // Replays are paced to AGENT_REPLAY_MS (default 25-35s); keep headroom so
 // Vercel never cuts an overview off mid-stream.
@@ -63,11 +64,11 @@ export async function GET(req: Request): Promise<Response> {
   }
 
   const row = session as {
-    condition: "vanilla_search" | "injected_search" | "vanilla_agent" | "injected_agent";
+    condition: Condition;
     topic_id: string;
     matched_topic_id: string | null;
   };
-  if (row.condition !== "vanilla_agent" && row.condition !== "injected_agent") {
+  if (!isAgentCondition(row.condition)) {
     return new Response(JSON.stringify({ error: "session is not in agent condition" }), {
       status: 400,
       headers: { "content-type": "application/json" },
@@ -88,7 +89,7 @@ export async function GET(req: Request): Promise<Response> {
       });
     }
     base =
-      row.condition === "injected_agent"
+      isInjectedCondition(row.condition)
         ? topic.injected_timeline
         : topic.vanilla_timeline;
   }

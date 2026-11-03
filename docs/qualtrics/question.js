@@ -32,35 +32,23 @@ Qualtrics.SurveyEngine.addOnload(function () {
   var MIN_VIEW = 25;
   var MAX_VIEW = 75;
 
-  // One row per topic shown in the survey. `id` must match a topic_id in the
-  // study corpus (it's the topic's Qualtrics block name, except
-  // historical_statue_removal, whose block is "historical_statue_re").
-  // Not in the survey yet: artificial_intelligence_ai (a candidate to swap in
-  // for one of rows 16-19). To swap, change that row's id and view code.
+  // Topics the study can assign: one row per topic in the deployed corpus. `id` must
+  // match a corpus topic_id (the topic's Qualtrics block name). Only these 7 have
+  // pro/con-poisoned agent runs (geo_storm experiments/procon_injection); the survey's
+  // other 12 sliders are still asked but never make a participant eligible. To add a
+  // topic back, it needs runs in the corpus first. Its slider QID is in git history.
   // `view` is the piped-text code for that topic's "What's your view on this
   // issue?" slider (Piped Text menu -> Survey Question -> <the question> ->
   // <the view statement>). QIDs are from this survey; the trailing /1 assumes
   // the view item is the question's first statement.
   var TOPICS = [
     { id: "saturday_halloween", view: "${q://QID36/ChoiceNumericEntryValue/1}" },
-    { id: "historical_statue_removal", view: "${q://QID38/ChoiceNumericEntryValue/1}" },
-    { id: "golf", view: "${q://QID39/ChoiceNumericEntryValue/1}" },
-    { id: "cheerleading", view: "${q://QID40/ChoiceNumericEntryValue/1}" },
-    { id: "churches_and_taxes", view: "${q://QID41/ChoiceNumericEntryValue/1}" },
     { id: "ride_sharing", view: "${q://QID42/ChoiceNumericEntryValue/1}" },
     { id: "space_colonization", view: "${q://QID43/ChoiceNumericEntryValue/1}" },
-    { id: "olympics", view: "${q://QID44/ChoiceNumericEntryValue/1}" },
-    { id: "election_day", view: "${q://QID45/ChoiceNumericEntryValue/1}" },
-    { id: "us_pledge_of_allegiance", view: "${q://QID46/ChoiceNumericEntryValue/1}" },
-    { id: "fighting_in_hockey", view: "${q://QID47/ChoiceNumericEntryValue/1}" },
     { id: "tablets_vs_textbooks", view: "${q://QID48/ChoiceNumericEntryValue/1}" },
-    { id: "reparations_for_slavery", view: "${q://QID49/ChoiceNumericEntryValue/1}" },
     { id: "zoos", view: "${q://QID50/ChoiceNumericEntryValue/1}" },
-    { id: "video_games", view: "${q://QID51/ChoiceNumericEntryValue/1}" },
     { id: "net_neutrality", view: "${q://QID52/ChoiceNumericEntryValue/1}" },
-    { id: "mandatory_national_service", view: "${q://QID53/ChoiceNumericEntryValue/1}" },
-    { id: "cancel_culture", view: "${q://QID54/ChoiceNumericEntryValue/1}" },
-    { id: "book_bans", view: "${q://QID55/ChoiceNumericEntryValue/1}" }
+    { id: "cancel_culture", view: "${q://QID54/ChoiceNumericEntryValue/1}" }
   ];
 
   var q = this; // eslint-disable-line @typescript-eslint/no-this-alias -- Qualtrics runs plain ES5
